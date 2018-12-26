@@ -1,4 +1,8 @@
+import com.spotify.docker.client.messages.Image;
+
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -75,6 +79,26 @@ public class MIB {
     }
 
     /**
+     * Para carregar a mib das imagens
+     */
+
+    public void carregaImagens(List allImages){
+        Iterator<List> it = allImages.iterator();
+
+        int i = 0;
+        while(it.hasNext()) {
+            Image image = (Image) it.next();
+            valores.put("2.1.1." + i, new Instancia(i, "2.1.1." + i));
+            String aux = image.repoTags().toString();
+            valores.put("2.1.2." + i, new Instancia(aux.substring(1, aux.length()-1), "2.1.2." + i));
+            i++;
+        }
+
+        System.out.println("VAMOS VER COMO ESTA:");
+        System.out.println(valores);
+    }
+
+    /**
      * Falta definir os erros que vamos mandar para tras ...
      * --> Das duas uma, ou fazemos com exceções ou mandamos uma classe com o indice do erro (a nivel de performance acho melhor a classe)
      * Para já estamos a validar aqui os objetos recebidos, mas depois isso será feito no Agent.java
@@ -135,7 +159,7 @@ public class MIB {
              * Necessário trabalhar com o Docker ...
              * Efetuamos umas tentativas falhadas
              */
-            // DockerClient dockerClient = DockerClientBuilder.getInstance().build();
+            //um try/catch, por exemplo, para criar o container
 
             /**
              * Só podemos fazer isto se obtivermos sucesso na criaão do container  ...
@@ -163,9 +187,12 @@ public class MIB {
                 valores.put(tableProcessorContainer, processorContainer);
             tableContainer.unlock();
 
+
+
             return true;
         }else{
             System.out.println("Erro: Outro container a ser criado ..");
+            rl.unlock();
             return false;
         }
 

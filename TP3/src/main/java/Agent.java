@@ -1,7 +1,15 @@
 //import com.sun.jmx.*;//snmp.SnmpPdu;
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
-import org.bouncycastle.asn1.*;
-import org.bouncycastle.asn1.util.ASN1Dump;
+//import com.github.dockerjava.api.DockerClient;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.spotify.docker.client.DefaultDockerClient;
+import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.exceptions.DockerCertificateException;
+import com.spotify.docker.client.exceptions.DockerException;
+//import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
+//import org.bouncycastle.asn1.*;
+//import org.bouncycastle.asn1.util.ASN1Dump;
+import com.spotify.docker.client.messages.*;
 import org.snmp4j.PDU;
 import org.snmp4j.SNMP4JSettings;
 import org.snmp4j.asn1.BER;
@@ -16,10 +24,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Vector;
+import java.util.*;
 
 import static org.snmp4j.asn1.BER.*;
 
@@ -30,14 +35,44 @@ public class Agent {
      */
     private static HashSet<Integer32> pedidosRecebidos = new HashSet<>();
 
-    public static void main(String[] args){
+    public static void main(String[] args) throws DockerCertificateException, DockerException, InterruptedException {
 
+        final DockerClient client = DefaultDockerClient
+                .fromEnv()
+                .build();
+
+        final List allImages = client.listImages();
+
+
+
+
+
+        /*Iterator <List> it = allImages.iterator();
+
+        while(it.hasNext()) {
+            Image i = (Image) it.next();
+            System.out.println(i.repoTags().getClass());
+        }*/
+
+
+        final ContainerCreation container = client.createContainer(ContainerConfig
+                .builder()
+                .image("fbgoncalves/snmpd-image:latest")
+                .build()
+        );
+
+        client.startContainer(container.id());
+        final ContainerInfo info = client.inspectContainer(container.id());
+
+        System.out.println(info);
+        client.close();
         //Marcar a data de inicio
         Date d = new Date();
         DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
         String data = df.format(d);
 
         MIB mib = new MIB(data);
+        mib.carregaImagens(allImages);
 
         try {
             /**
@@ -45,7 +80,7 @@ public class Agent {
              * Depois fica em escuta
              */
             DatagramSocket serverSocket = new DatagramSocket(null);
-            InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
+            InetSocketAddress s = new InetSocketAddress("127.0.0.1",50112);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
             DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
