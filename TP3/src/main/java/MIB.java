@@ -1,10 +1,35 @@
-import com.spotify.docker.client.messages.Image;
+//import com.spotify.docker.client.messages.Image;
 
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
+
+class FeedbackSet{
+    boolean erro;
+    int errorIndex;
+    int errorStatus;
+
+    public FeedbackSet(){
+        erro = false;
+    }
+
+    public FeedbackSet(int errorIndex, int errorStatus){
+        this.errorIndex = errorIndex + 1;
+        this.errorStatus = errorStatus;
+        this.erro = true;
+    }
+
+    @Override
+    public String toString() {
+        return "FeedbackSet{" +
+                "erro=" + erro +
+                ", errorIndex=" + errorIndex +
+                ", errorStatus=" + errorStatus +
+                '}';
+    }
+}
 
 class Instancia{
     int valorInt;
@@ -61,6 +86,9 @@ public class MIB {
          * Carrega o objeto relativo ao historio
          */
         valores.put("4.1.0", new Instancia(dataInicio.toString(), "4.1.0"));
+
+        //So para testar a imagem
+        valores.put("2.1.1.1", new Instancia(1, "2.1.1.1"));
     }
 
 
@@ -86,13 +114,13 @@ public class MIB {
         Iterator<List> it = allImages.iterator();
 
         int i = 0;
-        while(it.hasNext()) {
+        /*while(it.hasNext()) {
             Image image = (Image) it.next();
             valores.put("2.1.1." + i, new Instancia(i, "2.1.1." + i));
             String aux = image.repoTags().toString();
             valores.put("2.1.2." + i, new Instancia(aux.substring(1, aux.length()-1), "2.1.2." + i));
             i++;
-        }
+        }*/
 
         System.out.println("VAMOS VER COMO ESTA:");
         System.out.println(valores);
@@ -111,26 +139,13 @@ public class MIB {
      * @return
      */
 
-    public boolean setOIDParam(String oidImagem, int value, String oidContainer, String nome){
-
-        if(!oidImagem.equals("1.1.0")) {
-            System.out.println("Erro no primeiro argumento");
-            if(valores.containsKey(oidImagem))
-                System.out.println("Temos de retornar um erro de que nao é permitido fazer set");
-            return false;
-        }
-        if(!oidContainer.equals("1.2.0")){
-            System.out.println("Erro no seundo argumento");
-            if(valores.containsKey(oidContainer))
-                System.out.println("Temos de retornar um erro de que nao é permitido fazer set");
-            return false;
-        }
+    public FeedbackSet setOIDParam(String oidImagem, int value, int indiceI, String oidContainer, String nome, int indiceC){
 
         //Validar se a imagem existe - 2.1.1.value
         String imageTableIndex = "2.1.1." + value;
-        if(!valores.containsValue(imageTableIndex)){
-            System.out.println("Não temos essa imagem carregada ...");
-            return false;
+        if(!valores.containsKey(imageTableIndex)){
+            System.out.println("Não temos essa imagem carregada ..." + imageTableIndex);
+            return new FeedbackSet(indiceI, 11);
         }
 
         rl.lock();
@@ -143,7 +158,6 @@ public class MIB {
             Instancia auxContainer = valores.get(oidContainer);
             auxContainer.valorStr = nome;
             valores.put(oidContainer, auxContainer);
-            System.out.println(valores);
 
             //Validar se
 
@@ -151,6 +165,8 @@ public class MIB {
             Instancia auxFlag = valores.get("1.3.0");
             auxFlag.valorInt = 1;
             valores.put("1.3.0", auxFlag);
+
+            System.out.println(valores);
 
             //Devemos de libertar aqui o lock, para que outro utilizador possa efetuar um get ou então um set que dê erro
             rl.unlock();
@@ -188,16 +204,46 @@ public class MIB {
             tableContainer.unlock();
 
 
-
-            return true;
+            return new FeedbackSet();
         }else{
             System.out.println("Erro: Outro container a ser criado ..");
             rl.unlock();
-            return false;
+            return new FeedbackSet(0, 11);
         }
 
     }
 
+    private boolean statusContainerValido(String valor){
+        switch(valor){
+            case "up": return true;
+            case "down": return true;
+            case "removing": return true;
+            case "creating": return true;
+            case "changing": return true;
+            default: return false;
+        }
+    }
 
-
+    public FeedbackSet setOIDStatusContainership(String statusContainership, String valor, int indiceS) {
+        Instancia i = valores.get(statusContainership);
+        if(i == null){
+            System.out.println("Nao existe o OID: " + statusContainership);
+            return new FeedbackSet(indiceS, 2);
+        }
+        tableContainer.lock();
+        if(i.valorStr.equals("up") || i.valorStr.equals("down")){
+            i.valorStr = valor;
+            if(statusContainerValido(valor)) {
+                valores.put(statusContainership, i);
+                tableContainer.unlock();
+                return new FeedbackSet();
+            }else{
+                System.out.println("O valor da string nao é valido! " + valor);
+                return  new FeedbackSet(indiceS, 10);
+            }
+        }else{
+            tableContainer.unlock();
+            return new FeedbackSet(indiceS, 10);
+        }
+    }
 }

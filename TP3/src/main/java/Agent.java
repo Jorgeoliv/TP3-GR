@@ -2,14 +2,14 @@
 //import com.github.dockerjava.api.DockerClient;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.spotify.docker.client.DefaultDockerClient;
-import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.exceptions.DockerCertificateException;
-import com.spotify.docker.client.exceptions.DockerException;
+//import com.spotify.docker.client.DefaultDockerClient;
+//import com.spotify.docker.client.DockerClient;
+//import com.spotify.docker.client.exceptions.DockerCertificateException;
+//import com.spotify.docker.client.exceptions.DockerException;
 //import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 //import org.bouncycastle.asn1.*;
 //import org.bouncycastle.asn1.util.ASN1Dump;
-import com.spotify.docker.client.messages.*;
+//import com.spotify.docker.client.messages.*;
 import org.snmp4j.PDU;
 import org.snmp4j.SNMP4JSettings;
 import org.snmp4j.asn1.BER;
@@ -35,25 +35,13 @@ public class Agent {
      */
     private static HashSet<Integer32> pedidosRecebidos = new HashSet<>();
 
-    public static void main(String[] args) throws DockerCertificateException, DockerException, InterruptedException {
+    public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
 
-        final DockerClient client = DefaultDockerClient
+        /*final DockerClient client = DefaultDockerClient
                 .fromEnv()
                 .build();
 
         final List allImages = client.listImages();
-
-
-
-
-
-        /*Iterator <List> it = allImages.iterator();
-
-        while(it.hasNext()) {
-            Image i = (Image) it.next();
-            System.out.println(i.repoTags().getClass());
-        }*/
-
 
         final ContainerCreation container = client.createContainer(ContainerConfig
                 .builder()
@@ -65,14 +53,14 @@ public class Agent {
         final ContainerInfo info = client.inspectContainer(container.id());
 
         System.out.println(info);
-        client.close();
+        client.close();*/
         //Marcar a data de inicio
         Date d = new Date();
         DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
         String data = df.format(d);
 
         MIB mib = new MIB(data);
-        mib.carregaImagens(allImages);
+        //mib.carregaImagens(allImages);
 
         try {
             /**
@@ -80,7 +68,7 @@ public class Agent {
              * Depois fica em escuta
              */
             DatagramSocket serverSocket = new DatagramSocket(null);
-            InetSocketAddress s = new InetSocketAddress("127.0.0.1",50112);
+            InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
             DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
@@ -220,22 +208,65 @@ public class Agent {
          * Se o set for de 2 elementos -> verificar se são os OIDs "1.1.x" e "1.2.x", senao dar erro
          * Se o set for de 3 elementos -> verificar se são os 3 referidos anteriormente, senão dar erro
          */
-
-        if(vb.size() != 2){
+        int numOIDs = vb.size();
+        if(numOIDs > 3){
             //Temos de por tamanho invalido ... agora esta "too big"
             pduResposta.setErrorStatus(1);
             pduResposta.setErrorIndex(1);
         }else{
-            int a = vb.get(0).getVariable().toInt();
-            System.out.println(a);
-            String b = vb.get(1).getVariable().toString();
-            System.out.println(b.getClass());
+            int indiceImage = -1, indiceContainer = -1, indiceStatus = -1;
+            String oidImage = null, oidContainer = null, oidStatus = null;
+            int indiceError = -1;
 
-            /**
-             * Tamos a pressupor esta ordem ... Mas os OIDs podem vir trocados, depois temos de fazer parse e mandar da forma correta
-             */
-            mib.setOIDParam(vb.get(0).getOid().toString(), a, vb.get(1).getOid().toString(), b);
-            pduResposta.setErrorStatus(0);
+            for(int i = 0; i<numOIDs && indiceError == -1; i++){
+                String oid = vb.get(i).getOid().toString();
+                switch(oid){
+                    case "1.3.6.1.3.6000.1.1.0": indiceImage = i; oidImage = oid.substring(15); break;
+                    case "1.3.6.1.3.6000.1.2.0": indiceContainer = i; oidContainer = oid.substring(15); break;
+                    default:
+                        if(oid.startsWith("1.3.6.1.3.6000.3.1.4")){
+                            indiceStatus = i; oidStatus = oid.substring(15);
+                            System.out.println(oidStatus);
+                        }
+                        else
+                            indiceError = i;
+                }
+            }
+
+            if(indiceError != -1){
+                pduResposta.setErrorIndex(indiceError + 1);
+                pduResposta.setErrorStatus(2);
+            }
+            else{
+                if((oidImage != null && oidContainer == null) || (oidImage == null && oidContainer != null)){
+                    System.out.println("Combinação nao é valida!");
+                    pduResposta.setErrorIndex(0);
+                    pduResposta.setErrorStatus(3);
+                }else{
+                    FeedbackSet fbs = new FeedbackSet();
+                    if(oidStatus != null){
+                        fbs = mib.setOIDStatusContainership(oidStatus, vb.get(indiceStatus).getVariable().toString(), indiceStatus);
+                    }
+                    if(oidContainer != null && oidImage != null && !fbs.erro){
+                        try {
+                            int valorI = vb.get(indiceImage).getVariable().toInt();
+                            String valorC = vb.get(indiceContainer).getVariable().toString();
+                            fbs = mib.setOIDParam(oidImage, valorI, indiceImage, oidContainer, valorC, indiceContainer);
+                        }catch(UnsupportedOperationException e){
+                            System.out.println("Deu um erro de valores invalidos");
+                            pduResposta.setErrorIndex(indiceImage + 1);
+                            pduResposta.setErrorStatus(7);
+                        }
+                    }
+
+                    if(fbs.erro){
+                        pduResposta.setErrorIndex(fbs.errorIndex);
+                        pduResposta.setErrorStatus(fbs.errorStatus);
+                    }
+                    System.out.println(fbs.toString());
+                }
+
+            }
         }
 
         for (int i = 0; i < vb.size(); i++) {
@@ -256,6 +287,7 @@ public class Agent {
      * @return
      */
     private static PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
+
         for (int i = 0; i < vb.size(); i++) {
             System.out.println(vb.get(i));
             VariableBinding v = vb.get(i);
