@@ -2,14 +2,14 @@
 //import com.github.dockerjava.api.DockerClient;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-//import com.spotify.docker.client.DefaultDockerClient;
-//import com.spotify.docker.client.DockerClient;
-//import com.spotify.docker.client.exceptions.DockerCertificateException;
-//import com.spotify.docker.client.exceptions.DockerException;
+import com.spotify.docker.client.DefaultDockerClient;
+import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.exceptions.DockerCertificateException;
+import com.spotify.docker.client.exceptions.DockerException;
 //import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 //import org.bouncycastle.asn1.*;
 //import org.bouncycastle.asn1.util.ASN1Dump;
-//import com.spotify.docker.client.messages.*;
+import com.spotify.docker.client.messages.*;
 import org.snmp4j.PDU;
 import org.snmp4j.SNMP4JSettings;
 import org.snmp4j.asn1.BER;
@@ -37,30 +37,40 @@ public class Agent {
 
     public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
 
-        /*final DockerClient client = DefaultDockerClient
-                .fromEnv()
-                .build();
+        List allImages = null;
+        try {
+            final DockerClient client = DefaultDockerClient
+                    .fromEnv()
+                    .build();
 
-        final List allImages = client.listImages();
+            allImages = client.listImages();
 
-        final ContainerCreation container = client.createContainer(ContainerConfig
-                .builder()
-                .image("fbgoncalves/snmpd-image:latest")
-                .build()
-        );
+            final ContainerCreation container = client.createContainer(ContainerConfig
+                    .builder()
+                    .image("fbgoncalves/snmpd-image:latest")
+                    .build()
+            );
 
-        client.startContainer(container.id());
-        final ContainerInfo info = client.inspectContainer(container.id());
+            client.startContainer(container.id());
+            final ContainerInfo info = client.inspectContainer(container.id());
 
-        System.out.println(info);
-        client.close();*/
+            client
+                    .logs(container.id(), DockerClient.LogsParam.stdout(), DockerClient.LogsParam.stderr(), DockerClient.LogsParam.tail(10))
+                    .attach(System.out, System.err, false);
+
+            System.out.println(info);
+            client.close();
+        }catch (Exception e){
+            System.out.println("acabou");
+            return;
+        }
         //Marcar a data de inicio
         Date d = new Date();
         DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
         String data = df.format(d);
 
         MIB mib = new MIB(data);
-        //mib.carregaImagens(allImages);
+        mib.carregaImagens(allImages);
 
         try {
             /**
@@ -224,7 +234,7 @@ public class Agent {
                     case "1.3.6.1.3.6000.1.1.0": indiceImage = i; oidImage = oid.substring(15); break;
                     case "1.3.6.1.3.6000.1.2.0": indiceContainer = i; oidContainer = oid.substring(15); break;
                     default:
-                        if(oid.startsWith("1.3.6.1.3.6000.3.1.4")){
+                        if(oid.startsWith("1.3.6.1.3.6000.3.2.4")){
                             indiceStatus = i; oidStatus = oid.substring(15);
                             System.out.println(oidStatus);
                         }
@@ -300,25 +310,30 @@ public class Agent {
              * Depois temos de validar se o que vamos receber é um int ou um integer, para criar a "Variable" correta
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
-            Instancia instancia = mib.getOID(oid);
-
-            //ver se é diferente null (existe?), mandar o valor consoante o tipo
-            //se no int for -1 ou na string null , mandamos o null, para o utilizador saber que esta vazio
-            if(instancia == null){
-                System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
-                pduResposta.setErrorIndex(i+1);
-                //no such name ... Nao devia ser este mas vai ser ...
+            if(!oid.startsWith("1.3.6.1.3.6000.")){
+                System.out.println("O caminho inicial nao é correto...");
+                pduResposta.setErrorIndex(0);
                 pduResposta.setErrorStatus(2);
-                break;
-            }
-            else{
-                if(instancia.eInteiro){
-                    if(instancia.valorInt != -1)
-                        v.setVariable(new Integer32(instancia.valorInt));
-                }
-                else{
-                    if(instancia.valorStr != null)
-                        v.setVariable(new OctetString(instancia.valorStr));
+            }else {
+
+                Instancia instancia = mib.getOID(oid.substring(15));
+
+                //ver se é diferente null (existe?), mandar o valor consoante o tipo
+                //se no int for -1 ou na string null , mandamos o null, para o utilizador saber que esta vazio
+                if (instancia == null) {
+                    System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
+                    pduResposta.setErrorIndex(i + 1);
+                    //no such name ... Nao devia ser este mas vai ser ...
+                    pduResposta.setErrorStatus(2);
+                    break;
+                } else {
+                    if (instancia.eInteiro) {
+                        if (instancia.valorInt != -1)
+                            v.setVariable(new Integer32(instancia.valorInt));
+                    } else {
+                        if (instancia.valorStr != null)
+                            v.setVariable(new OctetString(instancia.valorStr));
+                    }
                 }
             }
 

@@ -1,10 +1,13 @@
 //import com.spotify.docker.client.messages.Image;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.TreeMap;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+
+import com.spotify.docker.client.DefaultDockerClient;
+import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.messages.*;
 
 class FeedbackSet{
     boolean erro;
@@ -82,28 +85,61 @@ public class MIB {
         valores.put("1.2.0", new Instancia(null, "1.2.0")); //get and set
         valores.put("1.3.0", new Instancia(0, "1.3.0")); //get
 
+        valores.put("3.1.0", new Instancia(0, "3.1.0"));
+
         /**
          * Carrega o objeto relativo ao historio
          */
+        //Data de inicio do agente
         valores.put("4.1.0", new Instancia(dataInicio.toString(), "4.1.0"));
+        //ultima criação de container
+        valores.put("4.2.0", new Instancia(null, "4.2.0"));
 
         //So para testar a imagem
-        valores.put("2.1.1.1", new Instancia(1, "2.1.1.1"));
+        //valores.put("2.2.1.1", new Instancia(1, "2.2.1.1"));
     }
 
-
-
     public Instancia getOID(String oid){
-        try {
-            rl.lock();
-            Instancia i = valores.get(oid);
-            System.out.println("===========");
-            System.out.println((i == null ? "É nulo" : i.toString()));
-            System.out.println("===========");
-            return i;
-        }finally {
-            rl.unlock();
+        System.out.println(oid.substring(0,1));
+        System.out.println(oid.substring(0,0));
+        switch(oid.substring(0,1)){
+            case "2":
+                Instancia i = valores.get(oid);
+                System.out.println("===========");
+                System.out.println((i == null ? "É nulo" : i.toString()));
+                System.out.println("===========");
+                return i;
+            case "4":
+                Instancia j = valores.get(oid);
+                System.out.println("===========");
+                System.out.println((j == null ? "É nulo" : j.toString()));
+                System.out.println("===========");
+                return j;
+            case "1":
+                try {
+                    rl.lock();
+                    Instancia k = valores.get(oid);
+                    System.out.println("===========");
+                    System.out.println((k == null ? "É nulo" : k.toString()));
+                    System.out.println("===========");
+                    return k;
+                }finally {
+                    rl.unlock();
+                }
+            case "3":
+                try {
+                    tableContainer.lock();
+                    Instancia p = valores.get(oid);
+                    System.out.println("===========");
+                    System.out.println((p == null ? "É nulo" : p.toString()));
+                    System.out.println("===========");
+                    return p;
+                }finally {
+                    tableContainer.unlock();
+                }
+            default: return null;
         }
+
     }
 
     /**
@@ -114,13 +150,14 @@ public class MIB {
         Iterator<List> it = allImages.iterator();
 
         int i = 0;
-        /*while(it.hasNext()) {
+        while(it.hasNext()) {
             Image image = (Image) it.next();
-            valores.put("2.1.1." + i, new Instancia(i, "2.1.1." + i));
+            valores.put("2.2.1." + i, new Instancia(i, "2.2.1." + i));
             String aux = image.repoTags().toString();
-            valores.put("2.1.2." + i, new Instancia(aux.substring(1, aux.length()-1), "2.1.2." + i));
+            valores.put("2.2.2." + i, new Instancia(aux.substring(1, aux.length()-1), "2.2.2." + i));
             i++;
-        }*/
+        }
+        valores.put("2.1.0", new Instancia(i, "2.1.0"));
 
         System.out.println("VAMOS VER COMO ESTA:");
         System.out.println(valores);
@@ -171,40 +208,81 @@ public class MIB {
             //Devemos de libertar aqui o lock, para que outro utilizador possa efetuar um get ou então um set que dê erro
             rl.unlock();
 
+            tableContainer.lock();
+            //totalContainer
+            Instancia totalContainers = valores.get("3.1.0");
+            totalContainers.valorInt++;
+            valores.put("3.1.0", totalContainers);
+            //ID
+            String tableIDContainer = "3.2.1." + numeroEntradaTableContainer;
+            Instancia idContainer = new Instancia(numeroEntradaTableContainer, tableIDContainer);
+            valores.put(tableIDContainer, idContainer);
+            //Nome
+            String tableNameContainer = "3.2.2." + numeroEntradaTableContainer;
+            Instancia nameContainer = new Instancia(nome, tableNameContainer);
+            valores.put(tableNameContainer, nameContainer);
+            //Indice de imagem
+            String tableImageContainer = "3.2.3." + numeroEntradaTableContainer;
+            Instancia imageContainer = new Instancia(value, tableImageContainer);
+            valores.put(tableImageContainer, imageContainer);
+            //Status do container
+            String tableStatusContainer = "3.2.4." + numeroEntradaTableContainer;
+            Instancia statusContainer = new Instancia("creating", tableStatusContainer);
+            valores.put(tableStatusContainer, statusContainer);
+            //Processador <- Aqui depois é preciso que seja o docker a monitorizar isto ...
+            String tableProcessorContainer = "3.2.5." + numeroEntradaTableContainer;
+            Instancia processorContainer = new Instancia(50, tableProcessorContainer);
+            valores.put(tableProcessorContainer, processorContainer);
+            tableContainer.unlock();
+
             /**
              * Necessário trabalhar com o Docker ...
              * Efetuamos umas tentativas falhadas
              */
             //um try/catch, por exemplo, para criar o container
+            try {
+                final DockerClient client = DefaultDockerClient
+                        .fromEnv()
+                        .build();
 
-            /**
-             * Só podemos fazer isto se obtivermos sucesso na criaão do container  ...
-             */
-            tableContainer.lock();
-                //ID
-                String tableIDContainer = "3.1.1." + numeroEntradaTableContainer;
-                Instancia idContainer = new Instancia(numeroEntradaTableContainer, tableIDContainer);
-                valores.put(tableIDContainer, idContainer);
-                //Nome
-                String tableNameContainer = "3.1.2." + numeroEntradaTableContainer;
-                Instancia nameContainer = new Instancia(nome, tableNameContainer);
-                valores.put(tableNameContainer, nameContainer);
-                //Indice de imagem
-                String tableImageContainer = "3.1.3." + numeroEntradaTableContainer;
-                Instancia imageContainer = new Instancia(value, tableImageContainer);
-                valores.put(tableImageContainer, imageContainer);
+                final ContainerCreation container = client.createContainer(ContainerConfig
+                        .builder()
+                        .image(nome)
+                        .build()
+                );
+
+                client.startContainer(container.id());
+                final ContainerInfo info = client.inspectContainer(container.id());
+
+                System.out.println(info);
+                client.close();
+
+                /**
+                 * Só podemos fazer isto se obtivermos sucesso na criaão do container  ...
+                 */
+                tableContainer.lock();
                 //Status do container
-                String tableStatusContainer = "3.1.4." + numeroEntradaTableContainer;
-                Instancia statusContainer = new Instancia("up", tableStatusContainer);
+                statusContainer = new Instancia("up", tableStatusContainer);
                 valores.put(tableStatusContainer, statusContainer);
-                //Processador <- Aqui depois é preciso que seja o docker a monitorizar isto ...
-                String tableProcessorContainer = "3.1.5." + numeroEntradaTableContainer;
-                Instancia processorContainer = new Instancia(50, tableProcessorContainer);
-                valores.put(tableProcessorContainer, processorContainer);
-            tableContainer.unlock();
+                tableContainer.unlock();
 
+                Date d = new Date();
+                DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+                String data = df.format(d);
+                Instancia ultimaAtualizacao = valores.get("4.2.0");
+                ultimaAtualizacao.valorStr = data;
+                valores.put("4.2.0", ultimaAtualizacao);
 
-            return new FeedbackSet();
+                return new FeedbackSet();
+            }catch(Exception e){
+                System.out.println("Deu um erro: " + e.getMessage());
+                //Status do container
+                tableContainer.lock();
+                statusContainer = new Instancia("removing", tableStatusContainer);
+                valores.put(tableStatusContainer, statusContainer);
+                tableContainer.unlock();
+                return new FeedbackSet(-1, 11);
+            }
         }else{
             System.out.println("Erro: Outro container a ser criado ..");
             rl.unlock();
