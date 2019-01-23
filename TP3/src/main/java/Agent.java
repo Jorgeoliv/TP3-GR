@@ -28,174 +28,89 @@ import java.util.*;
 
 import static org.snmp4j.asn1.BER.*;
 
-public class Agent {
+class Pedido implements Runnable{
+    private static PDU pdu;
+    MIB mib;
+    private static DatagramPacket pedido;
+    private static Integer32 version;
+    private static OctetString securityName;
 
-    /**
-     * @pedidosRecebidos Para controlar os pedidos que chegaram, e evitar respostas repetidas
-     */
-    private static HashSet<Integer32> pedidosRecebidos = new HashSet<>();
+    public Pedido(MIB mib, PDU pdu, DatagramPacket pedido, Integer32 version, OctetString securityName){
+        this.mib = mib;
+        this.pdu = pdu;
+        this.pedido = pedido;
+        this.version = version;
+        this.securityName = securityName;
+    }
 
-    public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
-
-        List allImages = null;
-        try {
-            final DockerClient client = DefaultDockerClient
-                    .fromEnv()
-                    .build();
-
-            allImages = client.listImages();
-
-            final ContainerCreation container = client.createContainer(ContainerConfig
-                    .builder()
-                    .image("fbgoncalves/snmpd-image:latest")
-                    .build()
-            );
-
-            client.startContainer(container.id());
-            final ContainerInfo info = client.inspectContainer(container.id());
-
-            client
-                    .logs(container.id(), DockerClient.LogsParam.stdout(), DockerClient.LogsParam.stderr(), DockerClient.LogsParam.tail(10))
-                    .attach(System.out, System.err, false);
-
-            System.out.println(info);
-            client.close();
-        }catch (Exception e){
-            System.out.println("acabou");
-            return;
-        }
-        //Marcar a data de inicio
-        Date d = new Date();
-        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
-        String data = df.format(d);
-
-        MIB mib = new MIB(data);
-        mib.carregaImagens(allImages);
+    public void run(){
 
         try {
             /**
-             * Para poder estabelecer uma conexão com o net-snmp
-             * Depois fica em escuta
+             * PROEDIMENTOS !!!!
+             * Temos de analisar o pacote, se for valido gerar a resposta senao gerar uma resposta com o respetivo erro
+             *
+             * Podemos fazer isto numa thread à parte ... Assim podemos receber vários pedidos ... Temos de ter controlo de concorrência na nossa estrutura
+             * Se for para criar uma thread, então a única coisa que lhe é preciso passar é o PDU, e a porta e o ip para onde tem de responder ou nao ...
+             * Vai depender da nossa implementação ... Mas é obrigatório passar o PDU
              */
-            DatagramSocket serverSocket = new DatagramSocket(null);
-            InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
-            serverSocket.bind(s);
-            //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
-            DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
 
-            while(true){
-                serverSocket.receive(pedido);
-                System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
+            PDU valido = analisaPacote();
+            PDU pduResposta = new PDU();
 
-                //Para ver a estrutura da mensagem
-                /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(pedido.getData()));
-                ASN1Primitive obj = bIn.readObject();
-                System.out.println(ASN1Dump.dumpAsString(obj));*/
+            boolean erro = false;
 
-                PDU pdu = new PDU();
-
-                /**
-                 * Fazer decode do pacote recebido:
-                 * -> Decode header
-                 * -> decode integer (versao)
-                 * -> decode octet string (comminity string)
-                 * -> decdo do PDU, que vai ser guardado no pdu a cima descrito
-                 */
-
-                ByteBuffer b = ByteBuffer.wrap(pedido.getData());
-                BERInputStream berStream = new BERInputStream(b);
-                BER.MutableByte type = new BER.MutableByte();
-                int length = BER.decodeHeader(berStream, type);
-                //int startPos = (int) berStream.getPosition();
-
-                if (type.getValue() != BER.SEQUENCE) {
-                    System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
-                }
-
-                Integer32 version = new Integer32();
-                version.decodeBER(berStream);
-                OctetString securityName = new OctetString();
-                securityName.decodeBER(berStream);
-                //Agora o PDU já vai ficar carregado com a toda a informação do
-                pdu.decodeBER(berStream);
-
-                /**
-                 * PROEDIMENTOS !!!!
-                 * Temos de analisar o pacote, se for valido gerar a resposta senao gerar uma resposta com o respetivo erro
-                 *
-                 * Podemos fazer isto numa thread à parte ... Assim podemos receber vários pedidos ... Temos de ter controlo de concorrência na nossa estrutura
-                 * Se for para criar uma thread, então a única coisa que lhe é preciso passar é o PDU, e a porta e o ip para onde tem de responder ou nao ...
-                 * Vai depender da nossa implementação ... Mas é obrigatório passar o PDU
-                 */
-
-                 PDU valido = analisaPacote(version, securityName, pdu);
-                 PDU pduResposta = new PDU();
-
-                 boolean erro = false;
-
-                 if(valido == null) {
-                     //Só um exemplo de como é que podemos carregar os objetos ... Depois mudará
-                     Vector<? extends VariableBinding> vb = pdu.getVariableBindings();
-                     if(pdu.getType() == PDU.GET)
-                         pduResposta = analisaVBGet(pduResposta, vb, mib);
-                     else
-                         pduResposta = analisaVBSet(pduResposta, vb, mib);
-
-                 }else
-                     pduResposta = valido;
-
-
-                System.out.println("O ID do pedido é " + pdu.getRequestID());
-                if(pedidosRecebidos.contains(pdu.getRequestID()))
-                    System.out.println("Já analisei este pedido. Vou descartá-lo!! AINDA É PRECISO FAZER ISTO!");
+            if (valido == null) {
+                //Só um exemplo de como é que podemos carregar os objetos ... Depois mudará
+                Vector<? extends VariableBinding> vb = pdu.getVariableBindings();
+                if (pdu.getType() == PDU.GET)
+                    pduResposta = analisaVBGet(pduResposta, vb, mib);
                 else
-                    pedidosRecebidos.add(pdu.getRequestID());
+                    pduResposta = analisaVBSet(pduResposta, vb, mib);
 
+            } else
+                pduResposta = valido;
 
-                //pduResposta.setErrorIndex(1);
-                //pduResposta.setErrorStatus(3);
-                pduResposta.setType(PDU.RESPONSE);
-                pduResposta.setRequestID(pdu.getRequestID());
-                /**
-                 * Tratamento do Encode da informação:
-                 * -> Primeiro iniciar uma stream para poder carregar os dados
-                 * -> Efetuar encode do header
-                 * -> Efetuar encode da versao e da community string (normalmente será igual ao recebido)
-                 * -> Efetuar encode do pdu que foi gerado pela resposta
-                 */
+            pduResposta.setType(PDU.RESPONSE);
+            pduResposta.setRequestID(pdu.getRequestID());
+            /**
+             * Tratamento do Encode da informação:
+             * -> Primeiro iniciar uma stream para poder carregar os dados
+             * -> Efetuar encode do header
+             * -> Efetuar encode da versao e da community string (normalmente será igual ao recebido)
+             * -> Efetuar encode do pdu que foi gerado pela resposta
+             */
 
-                ByteArrayOutputStream bbResposta = new ByteArrayOutputStream();
+            ByteArrayOutputStream bbResposta = new ByteArrayOutputStream();
 
-                int tamanhoResposta = version.getBERLength() + securityName.getBERLength() + pduResposta.getBERLength();
+            int tamanhoResposta = version.getBERLength() + securityName.getBERLength() + pduResposta.getBERLength();
 
-                encodeHeader(bbResposta, SEQUENCE, tamanhoResposta);
-                version.encodeBER(bbResposta);
-                securityName.encodeBER(bbResposta);
-                pduResposta.encodeBER(bbResposta);
+            encodeHeader(bbResposta, SEQUENCE, tamanhoResposta);
+            version.encodeBER(bbResposta);
+            securityName.encodeBER(bbResposta);
+            pduResposta.encodeBER(bbResposta);
 
-                byte[] resposta = new byte[bbResposta.size()];
-                resposta = bbResposta.toByteArray();
+            byte[] resposta = new byte[bbResposta.size()];
+            resposta = bbResposta.toByteArray();
 
-                System.out.println("New string da resposta: " + new String(resposta));
+            System.out.println("New string da resposta: " + new String(resposta));
 
-                //Para analisar a estrutura da resposta
+            //Para analisar a estrutura da resposta
                 /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(resposta));
                 ASN1Primitive obj = bIn.readObject();
                 System.out.println(ASN1Dump.dumpAsString(obj));*/
 
-                /**
-                 * Para se conectar ao netsnmp
-                 * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
-                 */
+            /**
+             * Para se conectar ao netsnmp
+             * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
+             */
 
-                DatagramSocket respondeSnmp = new DatagramSocket(null);
-                InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
-                respondeSnmp.connect(snmp);
-                respondeSnmp.send(new DatagramPacket(resposta, resposta.length));
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
+            DatagramSocket respondeSnmp = new DatagramSocket(null);
+            InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
+            respondeSnmp.connect(snmp);
+            respondeSnmp.send(new DatagramPacket(resposta, resposta.length));
+        }catch (Exception e){
+            System.out.println("ERRO: " + e.getMessage());
         }
     }
 
@@ -357,14 +272,14 @@ public class Agent {
      * @param pdu
      * @return
      */
-    private static PDU analisaPacote(Integer32 version, OctetString securityName, PDU pdu) {
+    private static PDU analisaPacote() {
 
         PDU pduRes = new PDU();
 
         if(!(securityName.toString().equals("public") || securityName.toString().equals("TP3GR"))) {
             //authorizationerror
-            pdu.setErrorStatus(16);
-            pdu.setErrorIndex(0);
+            pduRes.setErrorStatus(16);
+            pduRes.setErrorIndex(0);
             return pduRes;
         }
 
@@ -372,14 +287,121 @@ public class Agent {
         System.out.println(pdu.getType());
 
         if(!(pdu.getType() == PDU.GET || pdu.getType() == PDU.SET)) {
-            pdu.setErrorIndex(0);
-            pdu.setErrorStatus(19);
-            return pdu;
+            pduRes.setErrorIndex(0);
+            pduRes.setErrorStatus(19);
+            return pduRes;
         }
 
         System.out.println("sou vosso amigo");
 
         return null;
+    }
+}
+
+public class Agent {
+
+    /**
+     * @pedidosRecebidos Para controlar os pedidos que chegaram, e evitar respostas repetidas
+     */
+    private static HashSet<Integer32> pedidosRecebidos = new HashSet<>();
+
+    public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
+
+        List allImages = null;
+        try {
+            final DockerClient client = DefaultDockerClient
+                    .fromEnv()
+                    .build();
+
+            allImages = client.listImages();
+
+            final ContainerCreation container = client.createContainer(ContainerConfig
+                    .builder()
+                    .image("fbgoncalves/snmpd-image:latest")
+                    .build()
+            );
+
+            client.startContainer(container.id());
+            final ContainerInfo info = client.inspectContainer(container.id());
+
+            client
+                    .logs(container.id(), DockerClient.LogsParam.stdout(), DockerClient.LogsParam.stderr(), DockerClient.LogsParam.tail(10))
+                    .attach(System.out, System.err, false);
+
+            System.out.println(info);
+            client.close();
+        }catch (Exception e){
+            System.out.println("acabou");
+            return;
+        }
+        //Marcar a data de inicio
+        Date d = new Date();
+        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+        String data = df.format(d);
+
+        MIB mib = new MIB(data);
+        mib.carregaImagens(allImages);
+
+        try {
+            /**
+             * Para poder estabelecer uma conexão com o net-snmp
+             * Depois fica em escuta
+             */
+            DatagramSocket serverSocket = new DatagramSocket(null);
+            InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
+            serverSocket.bind(s);
+            //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
+            DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
+
+            while(true){
+                serverSocket.receive(pedido);
+                System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
+
+                //Para ver a estrutura da mensagem
+                /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(pedido.getData()));
+                ASN1Primitive obj = bIn.readObject();
+                System.out.println(ASN1Dump.dumpAsString(obj));*/
+
+                PDU pdu = new PDU();
+
+                /**
+                 * Fazer decode do pacote recebido:
+                 * -> Decode header
+                 * -> decode integer (versao)
+                 * -> decode octet string (comminity string)
+                 * -> decdo do PDU, que vai ser guardado no pdu a cima descrito
+                 */
+
+                ByteBuffer b = ByteBuffer.wrap(pedido.getData());
+                BERInputStream berStream = new BERInputStream(b);
+                BER.MutableByte type = new BER.MutableByte();
+                int length = BER.decodeHeader(berStream, type);
+                //int startPos = (int) berStream.getPosition();
+
+                if (type.getValue() != BER.SEQUENCE) {
+                    System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
+                }
+
+                Integer32 version = new Integer32();
+                version.decodeBER(berStream);
+                OctetString securityName = new OctetString();
+                securityName.decodeBER(berStream);
+                //Agora o PDU já vai ficar carregado com a toda a informação do
+                pdu.decodeBER(berStream);
+
+                System.out.println("O ID do pedido é " + pdu.getRequestID());
+                if(pedidosRecebidos.contains(pdu.getRequestID()))
+                    System.out.println("Já analisei este pedido. Vou descartá-lo!!");
+                else {
+                    (new Thread(new Pedido(mib, pdu, pedido, version, securityName))).start();
+                    pedidosRecebidos.add(pdu.getRequestID());
+                }
+
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 }

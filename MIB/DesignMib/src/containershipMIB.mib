@@ -31,8 +31,8 @@ containershipMIB MODULE-IDENTITY
 
 -- TOP LEVEL STRUCTURS
 containershipParam       OBJECT IDENTIFIER ::= { containershipMIB 1 }
--- DUVIDA DUVIDA DUVIDA DUVIDA DUVIDA ============================?
--- é necessario criar um top level tambem para a tabela?
+containershipImage       OBJECT IDENTIFIER ::= { containershipMIB 2 }
+containershipContainer   OBJECT IDENTIFIER ::= { containershipMIB 3 }
 containershipStatus     OBJECT IDENTIFIER ::= { containershipMIB 4 }
 
 --
@@ -72,13 +72,21 @@ flag OBJECT-TYPE
 -- grupo das tabelas de imagnes disponiveis
 --
 
+containershipImageNumber OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+	"Contem o numero de imagens existentes na mib"
+    ::= { containershipImage 1 }
+
 containershipImageTable OBJECT-TYPE
     SYNTAX      SEQUENCE OF ContainershipImageEntry
     MAX-ACCESS  not-accessible
     STATUS      current
     DESCRIPTION
 	"Tabela com as diferentes imagens existentes"
-    ::= { containershipMIB 2 }
+    ::= { containershipImage 2 }
 
 containershipImageEntry OBJECT-TYPE
     SYNTAX      ContainershipImageEntry
@@ -86,15 +94,15 @@ containershipImageEntry OBJECT-TYPE
     STATUS      current
     DESCRIPTION
 	"Linha para cada entrada da tabela (para cada imagem)"
-    INDEX   { idImage }
+    INDEX   { ContainershipImageIndex }
     ::= { containershipImageTable 1 }
 
 ContainershipImageEntry ::= SEQUENCE {
-    idImage  Integer32,
-    image DisplayString
+    ContainershipImageIndex  Integer32,
+    ContainershipImageName DisplayString
 }
 
-idImage OBJECT-TYPE
+ContainershipImageIndex OBJECT-TYPE
     SYNTAX      Integer32 (0..100)
     MAX-ACCESS  read-only
     STATUS      current
@@ -102,7 +110,7 @@ idImage OBJECT-TYPE
 	"Indice de cada imagem da tabela"
     ::= { containershipImageEntry 1 }
 
-image OBJECT-TYPE
+ContainershipImageName OBJECT-TYPE
     SYNTAX      DisplayString
     MAX-ACCESS  read-only
     STATUS      current
@@ -118,13 +126,21 @@ image OBJECT-TYPE
 -- DUVIDA DUVIDA DUVIDA DUVIDA DUVIDA ============================?
 -- Nao deveria de ser read create? Como é que criamos entao uma nova entrada na tabela?
 
+containershipContainerNumber OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+	"Contem o numero de containers existentes na mib"
+    ::= { containershipContainer 1 }
+
 containershipContainerTable OBJECT-TYPE
     SYNTAX      SEQUENCE OF ContainershipContainerEntry
     MAX-ACCESS  not-accessible
     STATUS      current
     DESCRIPTION
 	"Tabela com os containers que foram criados"
-    ::= { containershipMIB 3 }
+    ::= { containershipContainer 2 }
 
 containershipContainerEntry OBJECT-TYPE
     SYNTAX      ContainershipContainerEntry
@@ -132,18 +148,18 @@ containershipContainerEntry OBJECT-TYPE
     STATUS      current
     DESCRIPTION
 	"Linha para cada entrada da tabela"
-    INDEX   { containerId }
+    INDEX   { containershipContainerIndex }
     ::= { containershipContainerTable 1 }
 
 ContainershipContainerEntry ::= SEQUENCE {
-    containerId  Integer32,
-    container   DisplayString,
-    imageId     Integer32,
-    status      DisplayString,
-    processor   Integer32
+    containershipContainerIndex  Integer32,
+    containershipContainerName   DisplayString,
+    containershipContainerImage     Integer32,
+    containershipContainerStatus      DisplayString,
+    containershipContainerProcessor   Integer32
 }
 
-containerId OBJECT-TYPE
+containershipContainerIndex OBJECT-TYPE
     SYNTAX      Integer32(0..100)
     MAX-ACCESS  read-only
     STATUS      current
@@ -151,7 +167,7 @@ containerId OBJECT-TYPE
 	"Indice de cada linha da tabela"
     ::= { containershipContainerEntry 1 }
 
-container OBJECT-TYPE
+containershipContainerName OBJECT-TYPE
     SYNTAX      DisplayString
     MAX-ACCESS  read-only
     STATUS      current
@@ -159,7 +175,7 @@ container OBJECT-TYPE
 	"Nome do container"
     ::= { containershipContainerEntry 2 }
 
-imageId OBJECT-TYPE
+containershipContainerImage OBJECT-TYPE
     SYNTAX      Integer32
     MAX-ACCESS  read-only
     STATUS      current
@@ -167,7 +183,7 @@ imageId OBJECT-TYPE
 	"ID da imagem que esta criada no container"
     ::= { containershipContainerEntry 3 }
 
-status OBJECT-TYPE
+containershipContainerStatus OBJECT-TYPE
     SYNTAX      DisplayString
     MAX-ACCESS  read-write
     STATUS      current
@@ -175,7 +191,7 @@ status OBJECT-TYPE
 	"Estado atual do container"
     ::= { containershipContainerEntry 4 }
 
-processor OBJECT-TYPE
+containershipContainerProcessor OBJECT-TYPE
     SYNTAX      Integer32
     MAX-ACCESS  read-only
     STATUS      current
