@@ -8,6 +8,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.*;
+//import com.sun.xml.internal.ws.api.server.Container;
 
 class FeedbackSet{
     boolean erro;
@@ -75,6 +76,7 @@ public class MIB {
     ReentrantLock tableContainer = new ReentrantLock();
     //lock para o o objeto Param
     ReentrantLock rl = new ReentrantLock();
+    HashMap<String, ContainerCreation> containers = new HashMap<>();
 
     public MIB(String dataInicio){
 
@@ -178,8 +180,8 @@ public class MIB {
 
     public FeedbackSet setOIDParam(String oidImagem, int value, int indiceI, String oidContainer, String nome, int indiceC){
 
-        //Validar se a imagem existe - 2.1.1.value
-        String imageTableIndex = "2.1.1." + value;
+        //Validar se a imagem existe - 2.2.1.value
+        String imageTableIndex = "2.2.1." + value;
         if(!valores.containsKey(imageTableIndex)){
             System.out.println("Não temos essa imagem carregada ..." + imageTableIndex);
             return new FeedbackSet(indiceI, 11);
@@ -235,6 +237,9 @@ public class MIB {
             valores.put(tableProcessorContainer, processorContainer);
             tableContainer.unlock();
 
+            System.out.println("PASSEI POR AQUI");
+            System.out.println(valores);
+
             /**
              * Necessário trabalhar com o Docker ...
              * Efetuamos umas tentativas falhadas
@@ -247,20 +252,39 @@ public class MIB {
 
                 final ContainerCreation container = client.createContainer(ContainerConfig
                         .builder()
-                        .image(nome)
+                        .image(valores.get("2.2.2." + value).valorStr)
                         .build()
                 );
 
                 client.startContainer(container.id());
-                final ContainerInfo info = client.inspectContainer(container.id());
+                containers.put(tableStatusContainer, container);
+                System.out.println("O ID DO CONTAINER É: " + container.id());
 
-                System.out.println(info);
-                client.close();
+                ContainerStats info;
+                info = client.stats(container.id());
+                Long totalAnterior = info.cpuStats().cpuUsage().totalUsage();
+                Long systemAnterior = info.cpuStats().systemCpuUsage();
+                while(true){
+                    info = client.stats(container.id());
+                    Long total = info.cpuStats().cpuUsage().totalUsage();
+                    Long system = info.cpuStats().systemCpuUsage();
+                    Long cpuDelta = total - totalAnterior;
+                    Long systemDelta = system - systemAnterior;
+                    float totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
+                    System.out.println(totalPerc);
+                    System.out.println((double)cpuDelta / (double)systemDelta * totalPerc * 100);
+                    totalAnterior = total;
+                    systemAnterior = system;
+                }
+
+                /*System.out.println("VAMOS LA VER A PAPINHA");
+                System.out.println(info.cpuStats());
+                client.close();*/
 
                 /**
                  * Só podemos fazer isto se obtivermos sucesso na criaão do container  ...
                  */
-                tableContainer.lock();
+                /*tableContainer.lock();
                 //Status do container
                 statusContainer = new Instancia("up", tableStatusContainer);
                 valores.put(tableStatusContainer, statusContainer);
@@ -273,7 +297,7 @@ public class MIB {
                 ultimaAtualizacao.valorStr = data;
                 valores.put("4.2.0", ultimaAtualizacao);
 
-                return new FeedbackSet();
+                return new FeedbackSet();*/
             }catch(Exception e){
                 System.out.println("Deu um erro: " + e.getMessage());
                 //Status do container
@@ -295,9 +319,6 @@ public class MIB {
         switch(valor){
             case "up": return true;
             case "down": return true;
-            case "removing": return true;
-            case "creating": return true;
-            case "changing": return true;
             default: return false;
         }
     }
@@ -308,20 +329,64 @@ public class MIB {
             System.out.println("Nao existe o OID: " + statusContainership);
             return new FeedbackSet(indiceS, 2);
         }
-        tableContainer.lock();
-        if(i.valorStr.equals("up") || i.valorStr.equals("down")){
-            i.valorStr = valor;
-            if(statusContainerValido(valor)) {
+        try {
+            tableContainer.lock();
+            if ((i.valorStr.equals("up") || i.valorStr.equals("down")) && !i.valorStr.equals(valor)) {
+                System.out.println("o que recebi foi: " + valor);
+                String valorAntigo = i.valorStr;
+                i.valorStr = "changing";
                 valores.put(statusContainership, i);
-                tableContainer.unlock();
-                return new FeedbackSet();
-            }else{
-                System.out.println("O valor da string nao é valido! " + valor);
-                return  new FeedbackSet(indiceS, 10);
+
+                switch (valor) {
+                    case "up":
+                        try {
+                            final DockerClient client = DefaultDockerClient
+                                    .fromEnv()
+                                    .build();
+                            ContainerCreation cc = containers.get(statusContainership);
+                            client.unpauseContainer(cc.id());
+                            i.valorStr = "up";
+                            valores.put(statusContainership, i);
+                            return new FeedbackSet();
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                            i.valorStr = valorAntigo;
+                            valores.put(statusContainership, i);
+                            return new FeedbackSet(indiceS, 10);
+                        }
+                    case "down":
+                        System.out.println("Ja entrei no down!");
+                        try {
+                            final DockerClient client = DefaultDockerClient
+                                    .fromEnv()
+                                    .build();
+                            System.out.println(containers);
+                            System.out.println(statusContainership);
+                            ContainerCreation cc = containers.get(statusContainership);
+                            System.out.println(cc.id());
+                            client.pauseContainer(cc.id());
+                            i.valorStr = "down";
+                            valores.put(statusContainership, i);
+                            System.out.println("Vou retornar!!");
+                            return new FeedbackSet();
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                            i.valorStr = valorAntigo;
+                            valores.put(statusContainership, i);
+                            return new FeedbackSet(indiceS, 10);
+                        }
+                    default:
+                        System.out.println("O valor da string nao é valido! " + valor);
+                        i.valorStr = valorAntigo;
+                        valores.put(statusContainership, i);
+                        return new FeedbackSet(indiceS, 10);
+
+                }
+            } else {
+                return new FeedbackSet(indiceS, 10);
             }
-        }else{
+        }finally {
             tableContainer.unlock();
-            return new FeedbackSet(indiceS, 10);
         }
     }
 }

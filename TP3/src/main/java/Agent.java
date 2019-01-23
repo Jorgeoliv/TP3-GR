@@ -266,10 +266,6 @@ class Pedido implements Runnable{
     /**
      * Valida a community string, e ainda o metodo utilizado ...
      * Podemos tambem verificar a versao
-     *
-     * @param version
-     * @param securityName
-     * @param pdu
      * @return
      */
     private static PDU analisaPacote() {
@@ -393,6 +389,7 @@ public class Agent {
                 if(pedidosRecebidos.contains(pdu.getRequestID()))
                     System.out.println("Já analisei este pedido. Vou descartá-lo!!");
                 else {
+                    System.out.println("VOu começar a trtar do pedido");
                     (new Thread(new Pedido(mib, pdu, pedido, version, securityName))).start();
                     pedidosRecebidos.add(pdu.getRequestID());
                 }
