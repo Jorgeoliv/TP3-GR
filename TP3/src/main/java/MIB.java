@@ -77,6 +77,8 @@ public class MIB {
     //lock para o o objeto Param
     ReentrantLock rl = new ReentrantLock();
     HashMap<String, ContainerCreation> containers = new HashMap<>();
+    CpuMon cpu = new CpuMon(valores);
+    boolean primeiroCpu = true;
 
     public MIB(String dataInicio){
 
@@ -163,6 +165,15 @@ public class MIB {
 
         System.out.println("VAMOS VER COMO ESTA:");
         System.out.println(valores);
+    }
+
+    public ArrayList<Instancia> walk(String oid){
+        ArrayList<Instancia> instancias = new ArrayList<>();
+        for(Instancia in: this.valores.values()){
+            if(in.oid.startsWith(oid))
+                instancias.add(getOID(in.oid));
+        }
+        return instancias;
     }
 
     /**
@@ -264,7 +275,15 @@ public class MIB {
                 info = client.stats(container.id());
                 Long totalAnterior = info.cpuStats().cpuUsage().totalUsage();
                 Long systemAnterior = info.cpuStats().systemCpuUsage();
-                while(true){
+
+                CpuContainer cpuAux = new CpuContainer(totalAnterior, systemAnterior, tableStatusContainer);
+                if(primeiroCpu){
+                    primeiroCpu = false;
+                    (new Thread(cpu)).start();
+                }
+                cpu.adicionaCpu(tableStatusContainer, cpuAux);
+
+                /*while(true){
                     info = client.stats(container.id());
                     Long total = info.cpuStats().cpuUsage().totalUsage();
                     Long system = info.cpuStats().systemCpuUsage();
@@ -275,16 +294,16 @@ public class MIB {
                     System.out.println((double)cpuDelta / (double)systemDelta * totalPerc * 100);
                     totalAnterior = total;
                     systemAnterior = system;
-                }
+                }*/
 
-                /*System.out.println("VAMOS LA VER A PAPINHA");
+                System.out.println("VAMOS LA VER A PAPINHA");
                 System.out.println(info.cpuStats());
-                client.close();*/
+                client.close();
 
                 /**
                  * Só podemos fazer isto se obtivermos sucesso na criaão do container  ...
                  */
-                /*tableContainer.lock();
+                tableContainer.lock();
                 //Status do container
                 statusContainer = new Instancia("up", tableStatusContainer);
                 valores.put(tableStatusContainer, statusContainer);
@@ -297,7 +316,7 @@ public class MIB {
                 ultimaAtualizacao.valorStr = data;
                 valores.put("4.2.0", ultimaAtualizacao);
 
-                return new FeedbackSet();*/
+                return new FeedbackSet();
             }catch(Exception e){
                 System.out.println("Deu um erro: " + e.getMessage());
                 //Status do container
@@ -347,6 +366,7 @@ public class MIB {
                             client.unpauseContainer(cc.id());
                             i.valorStr = "up";
                             valores.put(statusContainership, i);
+                            cpu.ativo(statusContainership);
                             return new FeedbackSet();
                         } catch (Exception e) {
                             System.out.println(e.getMessage());
@@ -368,6 +388,7 @@ public class MIB {
                             i.valorStr = "down";
                             valores.put(statusContainership, i);
                             System.out.println("Vou retornar!!");
+                            cpu.inativo(statusContainership);
                             return new FeedbackSet();
                         } catch (Exception e) {
                             System.out.println(e.getMessage());
