@@ -399,7 +399,8 @@ public class Agent {
                     pedidosRecebidos.add(pdu.getRequestID());
                 }
 
-                Thread.sleep(1000);
+                System.out.println("vou espear");
+                Thread.sleep(250);
 
             }
 
