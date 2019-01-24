@@ -104,11 +104,15 @@ class Pedido implements Runnable{
              * Para se conectar ao netsnmp
              * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
              */
-
+            System.out.println("a");
             DatagramSocket respondeSnmp = new DatagramSocket(null);
-            InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
-            respondeSnmp.connect(snmp);
-            respondeSnmp.send(new DatagramPacket(resposta, resposta.length));
+            System.out.println("B");
+            //InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
+            System.out.println("c");
+            //respondeSnmp.connect(snmp);
+            System.out.println("d");
+            respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
+            System.out.println("e");
         }catch (Exception e){
             System.out.println("ERRO: " + e.getMessage());
         }
@@ -343,11 +347,12 @@ public class Agent {
              * Para poder estabelecer uma conexão com o net-snmp
              * Depois fica em escuta
              */
+
             DatagramSocket serverSocket = new DatagramSocket(null);
             InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
-            DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
+            DatagramPacket pedido = new DatagramPacket(new byte[1024], 1024);
 
             while(true){
                 serverSocket.receive(pedido);
@@ -393,6 +398,8 @@ public class Agent {
                     (new Thread(new Pedido(mib, pdu, pedido, version, securityName))).start();
                     pedidosRecebidos.add(pdu.getRequestID());
                 }
+
+                Thread.sleep(1000);
 
             }
 

@@ -244,7 +244,7 @@ public class MIB {
             valores.put(tableStatusContainer, statusContainer);
             //Processador <- Aqui depois é preciso que seja o docker a monitorizar isto ...
             String tableProcessorContainer = "3.2.5." + numeroEntradaTableContainer;
-            Instancia processorContainer = new Instancia(50, tableProcessorContainer);
+            Instancia processorContainer = new Instancia("0", tableProcessorContainer);
             valores.put(tableProcessorContainer, processorContainer);
             tableContainer.unlock();
 
@@ -276,7 +276,7 @@ public class MIB {
                 Long totalAnterior = info.cpuStats().cpuUsage().totalUsage();
                 Long systemAnterior = info.cpuStats().systemCpuUsage();
 
-                CpuContainer cpuAux = new CpuContainer(totalAnterior, systemAnterior, tableStatusContainer);
+                CpuContainer cpuAux = new CpuContainer(totalAnterior, systemAnterior, tableProcessorContainer, container);
                 if(primeiroCpu){
                     primeiroCpu = false;
                     (new Thread(cpu)).start();

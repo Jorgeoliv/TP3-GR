@@ -5,6 +5,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.*;
 
 class CpuContainer{
@@ -16,23 +17,31 @@ class CpuContainer{
     String statusContainer;
     boolean ativo = true;
 
-    public CpuContainer(Long t, Long s, String statusContainer){
+    public CpuContainer(Long t, Long s, String statusContainer, ContainerCreation container){
         this.totalAnterior = t;
         this.systemAnterior = s;
         this.statusContainer = statusContainer;
+        this.container = container;
+        System.out.println("O oid do container é: " + statusContainer);
     }
 
 }
 
 public class CpuMon implements Runnable{
     HashMap<String, CpuContainer> cpus =  new HashMap<>();
-    final DockerClient client = DefaultDockerClient
-            .fromEnv()
-            .build();
+    DockerClient client;
     HashMap<String, Instancia> valores;
 
     public CpuMon(HashMap<String,Instancia> valores) {
+
         this.valores = valores;
+        try{
+            client = DefaultDockerClient
+                    .fromEnv()
+                    .build();
+        }catch(Exception e){
+            System.out.println(e.getMessage());
+        }
     }
 
     public void inativo(String statusContainer){
@@ -55,23 +64,36 @@ public class CpuMon implements Runnable{
     public void run() {
         while(!Thread.interrupted()){
             for(CpuContainer cpu: this.cpus.values()){
-                ContainerStats info;
-                info = client.stats(cpu.container.id());
-                cpu.total = info.cpuStats().cpuUsage().totalUsage();
-                cpu.system = info.cpuStats().systemCpuUsage();
+                try {
+                    if(cpu.ativo) {
+                        ContainerStats info;
+                        info = client.stats(cpu.container.id());
 
-                double percentagemCpu = 0.0;
-                Long cpuDelta = cpu.total - cpu.totalAnterior;
-                Long systemDelta = cpu.system - cpu.systemAnterior;
-                double totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
-                if(cpuDelta > 0 && systemDelta > 0)
-                    percentagemCpu = (double)cpuDelta / (double)systemDelta * totalPerc * 100;
-                Instancia status = this.valores.get(cpu.statusContainer);
-                status.valorInt = (int) percentagemCpu;
-                System.out.println("O valor é: " + status.valorInt);
-                valores.put(cpu.statusContainer, status);
-                cpu.totalAnterior = cpu.total;
-                cpu.systemAnterior = cpu.system;
+                        cpu.total = info.cpuStats().cpuUsage().totalUsage();
+                        cpu.system = info.cpuStats().systemCpuUsage();
+
+                        double percentagemCpu = 0.0;
+                        Long cpuDelta = cpu.total - cpu.totalAnterior;
+                        Long systemDelta = cpu.system - cpu.systemAnterior;
+                        double totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
+                        if (cpuDelta > 0 && systemDelta > 0)
+                            percentagemCpu = (double) cpuDelta / (double) systemDelta * totalPerc * 100;
+                        System.out.println("Antes de ir buscar os valores");
+                        Instancia status = this.valores.get(cpu.statusContainer);
+                        status.valorStr = "" + percentagemCpu;
+                        System.out.println("O valor é: " + status.valorStr);
+                        valores.put(cpu.statusContainer, status);
+                        System.out.println(valores);
+                        cpu.totalAnterior = cpu.total;
+                        cpu.systemAnterior = cpu.system;
+                    }
+                } catch (DockerException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (Exception e){
+                    System.out.println(e.getMessage());
+                }
             }
         }
         client.close();
