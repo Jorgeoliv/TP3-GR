@@ -17,6 +17,7 @@ import org.snmp4j.asn1.BERInputStream;
 import org.snmp4j.asn1.BEROutputStream;
 import org.snmp4j.smi.*;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -29,23 +30,62 @@ import java.util.*;
 import static org.snmp4j.asn1.BER.*;
 
 class Pedido implements Runnable{
-    private static PDU pdu;
     MIB mib;
-    private static DatagramPacket pedido;
-    private static Integer32 version;
-    private static OctetString securityName;
+    DatagramPacket pedido;
+    HashSet<Integer32> pedidosRecebidos;
 
-    public Pedido(MIB mib, PDU pdu, DatagramPacket pedido, Integer32 version, OctetString securityName){
+    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos){
         this.mib = mib;
-        this.pdu = pdu;
         this.pedido = pedido;
-        this.version = version;
-        this.securityName = securityName;
+        this.pedidosRecebidos = pedidosRecebidos;
     }
 
     public void run(){
 
         try {
+            System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
+
+            //Para ver a estrutura da mensagem
+                /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(pedido.getData()));
+                ASN1Primitive obj = bIn.readObject();
+                System.out.println(ASN1Dump.dumpAsString(obj));*/
+
+            PDU pdu = new PDU();
+
+            /**
+             * Fazer decode do pacote recebido:
+             * -> Decode header
+             * -> decode integer (versao)
+             * -> decode octet string (comminity string)
+             * -> decdo do PDU, que vai ser guardado no pdu a cima descrito
+             */
+
+            ByteBuffer b = ByteBuffer.wrap(pedido.getData());
+            BERInputStream berStream = new BERInputStream(b);
+            BER.MutableByte type = new BER.MutableByte();
+            int length = BER.decodeHeader(berStream, type);
+            //int startPos = (int) berStream.getPosition();
+
+            if (type.getValue() != BER.SEQUENCE) {
+                System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
+            }
+
+            Integer32 version = new Integer32();
+            version.decodeBER(berStream);
+            OctetString securityName = new OctetString();
+            securityName.decodeBER(berStream);
+            //Agora o PDU já vai ficar carregado com a toda a informação do
+            pdu.decodeBER(berStream);
+
+            System.out.println("O ID do pedido é " + pdu.getRequestID());
+            if (pedidosRecebidos.contains(pdu.getRequestID())) {
+                System.out.println("Já analisei este pedido. Vou descartá-lo!!");
+                return;
+            }
+            else {
+                pedidosRecebidos.add(pdu.getRequestID());
+            }
+
             /**
              * PROEDIMENTOS !!!!
              * Temos de analisar o pacote, se for valido gerar a resposta senao gerar uma resposta com o respetivo erro
@@ -55,7 +95,7 @@ class Pedido implements Runnable{
              * Vai depender da nossa implementação ... Mas é obrigatório passar o PDU
              */
 
-            PDU valido = analisaPacote();
+            PDU valido = analisaPacote(securityName, pdu);
             PDU pduResposta = new PDU();
 
             boolean erro = false;
@@ -102,10 +142,12 @@ class Pedido implements Runnable{
              * Para se conectar ao netsnmp
              * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
              */
-            DatagramSocket respondeSnmp = new DatagramSocket(null);
+            //DatagramSocket respondeSnmp = new DatagramSocket(null);
             //InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
             //respondeSnmp.connect(snmp);
-            respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
+            //respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
+
+            (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort())))).start();
         }catch (Exception e){
             System.out.println("ERRO: " + e.getMessage());
         }
@@ -256,7 +298,7 @@ class Pedido implements Runnable{
      * Podemos tambem verificar a versao
      * @return
      */
-    private static PDU analisaPacote() {
+    private static PDU analisaPacote(OctetString securityName, PDU pdu) {
 
         PDU pduRes = new PDU();
 
@@ -286,9 +328,9 @@ public class Agent {
     /**
      * @pedidosRecebidos Para controlar os pedidos que chegaram, e evitar respostas repetidas
      */
-    private static HashSet<Integer32> pedidosRecebidos = new HashSet<>();
 
     public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
+        HashSet<Integer32> pedidosRecebidos = new HashSet<>();
 
         List allImages = null;
         try {
@@ -321,52 +363,16 @@ public class Agent {
             InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
+            Thread t;
 
             while(true){
-                DatagramPacket pedido = new DatagramPacket(new byte[1024], 1024);
+                DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
                 serverSocket.receive(pedido);
-                System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
+                (new Thread(new Pedido(mib, pedido, pedidosRecebidos))).start();
 
-                //Para ver a estrutura da mensagem
-                /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(pedido.getData()));
-                ASN1Primitive obj = bIn.readObject();
-                System.out.println(ASN1Dump.dumpAsString(obj));*/
-
-                PDU pdu = new PDU();
-
-                /**
-                 * Fazer decode do pacote recebido:
-                 * -> Decode header
-                 * -> decode integer (versao)
-                 * -> decode octet string (comminity string)
-                 * -> decdo do PDU, que vai ser guardado no pdu a cima descrito
-                 */
-
-                ByteBuffer b = ByteBuffer.wrap(pedido.getData());
-                BERInputStream berStream = new BERInputStream(b);
-                BER.MutableByte type = new BER.MutableByte();
-                int length = BER.decodeHeader(berStream, type);
-                //int startPos = (int) berStream.getPosition();
-
-                if (type.getValue() != BER.SEQUENCE) {
-                    System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
-                }
-
-                Integer32 version = new Integer32();
-                version.decodeBER(berStream);
-                OctetString securityName = new OctetString();
-                securityName.decodeBER(berStream);
-                //Agora o PDU já vai ficar carregado com a toda a informação do
-                pdu.decodeBER(berStream);
-
-                System.out.println("O ID do pedido é " + pdu.getRequestID());
-                if(pedidosRecebidos.contains(pdu.getRequestID()))
-                    System.out.println("Já analisei este pedido. Vou descartá-lo!!");
-                else {
-                    (new Thread(new Pedido(mib, pdu, pedido, version, securityName))).start();
-                    pedidosRecebidos.add(pdu.getRequestID());
-                }
-
+                /*w = new Worker(pedido, pedidosRecebidos, mib);
+                t = new Thread(w);
+                t.start();*/
                 System.out.println("vou espear");
                 //Thread.sleep(250);
 
@@ -377,4 +383,25 @@ public class Agent {
         }
     }
 
+}
+
+class Sender implements Runnable{
+    private DatagramPacket dp;
+    public Sender(DatagramPacket dp){
+        this.dp = dp;
+    }
+
+    public void run(){
+        Random rand = new Random();
+
+        int port = rand.nextInt(2000) + 6000;
+        try {
+            DatagramSocket ds = new DatagramSocket(port);
+            System.out.println("VOU ENVIAR UMA RESPOSTA PARA O: " + dp.getSocketAddress());
+            ds.send(dp);
+        }
+        catch(Exception e){
+            System.out.println(e.getMessage());
+        }
+    }
 }

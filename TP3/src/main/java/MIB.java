@@ -300,6 +300,7 @@ public class MIB {
                 auxFlagTerminada.valorInt = 0;
                 valores.put("1.3.0", auxFlagTerminada);
 
+                System.out.println("CRIEI O CONTAINER SEM QQ PROBLEMA");
                 return new FeedbackSet();
             }catch(Exception e){
                 System.out.println("Deu um erro: " + e.getMessage());
@@ -352,6 +353,7 @@ public class MIB {
                                     .fromEnv()
                                     .build();
                             ContainerCreation cc = containers.get(statusContainership);
+                            //client.startContainer(cc.id());
                             client.unpauseContainer(cc.id());
                             i.valorStr = "up";
                             valores.put(statusContainership, i);
