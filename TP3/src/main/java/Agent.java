@@ -93,8 +93,6 @@ class Pedido implements Runnable{
             byte[] resposta = new byte[bbResposta.size()];
             resposta = bbResposta.toByteArray();
 
-            System.out.println("New string da resposta: " + new String(resposta));
-
             //Para analisar a estrutura da resposta
                 /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(resposta));
                 ASN1Primitive obj = bIn.readObject();
@@ -104,15 +102,10 @@ class Pedido implements Runnable{
              * Para se conectar ao netsnmp
              * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
              */
-            System.out.println("a");
             DatagramSocket respondeSnmp = new DatagramSocket(null);
-            System.out.println("B");
             //InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
-            System.out.println("c");
             //respondeSnmp.connect(snmp);
-            System.out.println("d");
             respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
-            System.out.println("e");
         }catch (Exception e){
             System.out.println("ERRO: " + e.getMessage());
         }
@@ -155,7 +148,6 @@ class Pedido implements Runnable{
                     default:
                         if(oid.startsWith("1.3.6.1.3.6000.3.2.4")){
                             indiceStatus = i; oidStatus = oid.substring(15);
-                            System.out.println(oidStatus);
                         }
                         else
                             indiceError = i;
@@ -192,14 +184,10 @@ class Pedido implements Runnable{
                         pduResposta.setErrorIndex(fbs.errorIndex);
                         pduResposta.setErrorStatus(fbs.errorStatus);
                     }
-                    System.out.println(fbs.toString());
+
                 }
 
             }
-        }
-
-        for (int i = 0; i < vb.size(); i++) {
-            System.out.println(vb.get(i));
         }
 
         pduResposta.setVariableBindings(vb);
@@ -218,7 +206,6 @@ class Pedido implements Runnable{
     private static PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
 
         for (int i = 0; i < vb.size(); i++) {
-            System.out.println(vb.get(i));
             VariableBinding v = vb.get(i);
             //v.setVariable(new Integer32(i));
             String oid = v.getOid().toString();
@@ -258,9 +245,6 @@ class Pedido implements Runnable{
 
         }
 
-        for (int i = 0; i < vb.size(); i++) {
-            System.out.println(vb.get(i));
-        }
 
         pduResposta.setVariableBindings(vb);
         return pduResposta;
@@ -292,7 +276,6 @@ class Pedido implements Runnable{
             return pduRes;
         }
 
-        System.out.println("sou vosso amigo");
 
         return null;
     }
@@ -315,20 +298,6 @@ public class Agent {
 
             allImages = client.listImages();
 
-            final ContainerCreation container = client.createContainer(ContainerConfig
-                    .builder()
-                    .image("fbgoncalves/snmpd-image:latest")
-                    .build()
-            );
-
-            client.startContainer(container.id());
-            final ContainerInfo info = client.inspectContainer(container.id());
-
-            client
-                    .logs(container.id(), DockerClient.LogsParam.stdout(), DockerClient.LogsParam.stderr(), DockerClient.LogsParam.tail(10))
-                    .attach(System.out, System.err, false);
-
-            System.out.println(info);
             client.close();
         }catch (Exception e){
             System.out.println("acabou");
@@ -352,9 +321,9 @@ public class Agent {
             InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
-            DatagramPacket pedido = new DatagramPacket(new byte[1024], 1024);
 
             while(true){
+                DatagramPacket pedido = new DatagramPacket(new byte[1024], 1024);
                 serverSocket.receive(pedido);
                 System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
 
@@ -394,13 +363,12 @@ public class Agent {
                 if(pedidosRecebidos.contains(pdu.getRequestID()))
                     System.out.println("Já analisei este pedido. Vou descartá-lo!!");
                 else {
-                    System.out.println("VOu começar a trtar do pedido");
                     (new Thread(new Pedido(mib, pdu, pedido, version, securityName))).start();
                     pedidosRecebidos.add(pdu.getRequestID());
                 }
 
                 System.out.println("vou espear");
-                Thread.sleep(250);
+                //Thread.sleep(250);
 
             }
 

@@ -22,7 +22,7 @@ class CpuContainer{
         this.systemAnterior = s;
         this.statusContainer = statusContainer;
         this.container = container;
-        System.out.println("O oid do container é: " + statusContainer);
+
     }
 
 }
@@ -78,12 +78,9 @@ public class CpuMon implements Runnable{
                         double totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
                         if (cpuDelta > 0 && systemDelta > 0)
                             percentagemCpu = (double) cpuDelta / (double) systemDelta * totalPerc * 100;
-                        System.out.println("Antes de ir buscar os valores");
                         Instancia status = this.valores.get(cpu.statusContainer);
                         status.valorStr = "" + percentagemCpu;
-                        System.out.println("O valor é: " + status.valorStr);
                         valores.put(cpu.statusContainer, status);
-                        System.out.println(valores);
                         cpu.totalAnterior = cpu.total;
                         cpu.systemAnterior = cpu.system;
                     }

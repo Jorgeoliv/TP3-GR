@@ -104,8 +104,6 @@ public class MIB {
     }
 
     public Instancia getOID(String oid){
-        System.out.println(oid.substring(0,1));
-        System.out.println(oid.substring(0,0));
         switch(oid.substring(0,1)){
             case "2":
                 Instancia i = valores.get(oid);
@@ -216,15 +214,15 @@ public class MIB {
             auxFlag.valorInt = 1;
             valores.put("1.3.0", auxFlag);
 
-            System.out.println(valores);
 
             //Devemos de libertar aqui o lock, para que outro utilizador possa efetuar um get ou então um set que dê erro
             rl.unlock();
 
             tableContainer.lock();
             //totalContainer
+            numeroEntradaTableContainer++;
             Instancia totalContainers = valores.get("3.1.0");
-            totalContainers.valorInt++;
+            totalContainers.valorInt = numeroEntradaTableContainer;
             valores.put("3.1.0", totalContainers);
             //ID
             String tableIDContainer = "3.2.1." + numeroEntradaTableContainer;
@@ -248,9 +246,6 @@ public class MIB {
             valores.put(tableProcessorContainer, processorContainer);
             tableContainer.unlock();
 
-            System.out.println("PASSEI POR AQUI");
-            System.out.println(valores);
-
             /**
              * Necessário trabalhar com o Docker ...
              * Efetuamos umas tentativas falhadas
@@ -269,7 +264,6 @@ public class MIB {
 
                 client.startContainer(container.id());
                 containers.put(tableStatusContainer, container);
-                System.out.println("O ID DO CONTAINER É: " + container.id());
 
                 ContainerStats info;
                 info = client.stats(container.id());
@@ -283,21 +277,6 @@ public class MIB {
                 }
                 cpu.adicionaCpu(tableStatusContainer, cpuAux);
 
-                /*while(true){
-                    info = client.stats(container.id());
-                    Long total = info.cpuStats().cpuUsage().totalUsage();
-                    Long system = info.cpuStats().systemCpuUsage();
-                    Long cpuDelta = total - totalAnterior;
-                    Long systemDelta = system - systemAnterior;
-                    float totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
-                    System.out.println(totalPerc);
-                    System.out.println((double)cpuDelta / (double)systemDelta * totalPerc * 100);
-                    totalAnterior = total;
-                    systemAnterior = system;
-                }*/
-
-                System.out.println("VAMOS LA VER A PAPINHA");
-                System.out.println(info.cpuStats());
                 client.close();
 
                 /**
@@ -316,6 +295,11 @@ public class MIB {
                 ultimaAtualizacao.valorStr = data;
                 valores.put("4.2.0", ultimaAtualizacao);
 
+                //Alterar a Flag
+                Instancia auxFlagTerminada = valores.get("1.3.0");
+                auxFlagTerminada.valorInt = 0;
+                valores.put("1.3.0", auxFlagTerminada);
+
                 return new FeedbackSet();
             }catch(Exception e){
                 System.out.println("Deu um erro: " + e.getMessage());
@@ -324,6 +308,12 @@ public class MIB {
                 statusContainer = new Instancia("removing", tableStatusContainer);
                 valores.put(tableStatusContainer, statusContainer);
                 tableContainer.unlock();
+
+                //Alterar a Flag
+                Instancia auxFlagTerminada = valores.get("1.3.0");
+                auxFlagTerminada.valorInt = 0;
+                valores.put("1.3.0", auxFlagTerminada);
+
                 return new FeedbackSet(-1, 11);
             }
         }else{
@@ -351,7 +341,6 @@ public class MIB {
         try {
             tableContainer.lock();
             if ((i.valorStr.equals("up") || i.valorStr.equals("down")) && !i.valorStr.equals(valor)) {
-                System.out.println("o que recebi foi: " + valor);
                 String valorAntigo = i.valorStr;
                 i.valorStr = "changing";
                 valores.put(statusContainership, i);
@@ -375,19 +364,14 @@ public class MIB {
                             return new FeedbackSet(indiceS, 10);
                         }
                     case "down":
-                        System.out.println("Ja entrei no down!");
                         try {
                             final DockerClient client = DefaultDockerClient
                                     .fromEnv()
                                     .build();
-                            System.out.println(containers);
-                            System.out.println(statusContainership);
                             ContainerCreation cc = containers.get(statusContainership);
-                            System.out.println(cc.id());
                             client.pauseContainer(cc.id());
                             i.valorStr = "down";
                             valores.put(statusContainership, i);
-                            System.out.println("Vou retornar!!");
                             cpu.inativo(statusContainership);
                             return new FeedbackSet();
                         } catch (Exception e) {
