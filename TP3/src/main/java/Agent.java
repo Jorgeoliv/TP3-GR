@@ -43,7 +43,7 @@ class Pedido implements Runnable{
     public void run(){
 
         try {
-            System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
+            //System.out.println("recebi um pedido snmp " + pedido.getLength() + ".From: " + pedido.getSocketAddress());
 
             //Para ver a estrutura da mensagem
                 /*ASN1InputStream bIn = new ASN1InputStream(new ByteArrayInputStream(pedido.getData()));
@@ -67,7 +67,7 @@ class Pedido implements Runnable{
             //int startPos = (int) berStream.getPosition();
 
             if (type.getValue() != BER.SEQUENCE) {
-                System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
+                //System.out.println("Erro no PDU! Nao comeca por uma sequencia!");
             }
 
             Integer32 version = new Integer32();
@@ -77,9 +77,9 @@ class Pedido implements Runnable{
             //Agora o PDU já vai ficar carregado com a toda a informação do
             pdu.decodeBER(berStream);
 
-            System.out.println("O ID do pedido é " + pdu.getRequestID());
+            //System.out.println("O ID do pedido é " + pdu.getRequestID());
             if (pedidosRecebidos.contains(pdu.getRequestID())) {
-                System.out.println("Já analisei este pedido. Vou descartá-lo!!");
+                //System.out.println("Já analisei este pedido. Vou descartá-lo!!");
                 return;
             }
             else {
@@ -149,7 +149,7 @@ class Pedido implements Runnable{
 
             (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort())))).start();
         }catch (Exception e){
-            System.out.println("ERRO: " + e.getMessage());
+            //System.out.println("ERRO: " + e.getMessage());
         }
     }
 
@@ -202,7 +202,7 @@ class Pedido implements Runnable{
             }
             else{
                 if((oidImage != null && oidContainer == null) || (oidImage == null && oidContainer != null)){
-                    System.out.println("Combinação nao é valida!");
+                    //System.out.println("Combinação nao é valida!");
                     pduResposta.setErrorIndex(0);
                     pduResposta.setErrorStatus(3);
                 }else{
@@ -216,7 +216,7 @@ class Pedido implements Runnable{
                             String valorC = vb.get(indiceContainer).getVariable().toString();
                             fbs = mib.setOIDParam(oidImage, valorI, indiceImage, oidContainer, valorC, indiceContainer);
                         }catch(UnsupportedOperationException e){
-                            System.out.println("Deu um erro de valores invalidos");
+                            //System.out.println("Deu um erro de valores invalidos");
                             pduResposta.setErrorIndex(indiceImage + 1);
                             pduResposta.setErrorStatus(7);
                         }
@@ -259,7 +259,7 @@ class Pedido implements Runnable{
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
             if(!oid.startsWith("1.3.6.1.3.6000.")){
-                System.out.println("O caminho inicial nao é correto...");
+                //System.out.println("O caminho inicial nao é correto...");
                 pduResposta.setErrorIndex(0);
                 pduResposta.setErrorStatus(2);
             }else {
@@ -269,7 +269,7 @@ class Pedido implements Runnable{
                 //ver se é diferente null (existe?), mandar o valor consoante o tipo
                 //se no int for -1 ou na string null , mandamos o null, para o utilizador saber que esta vazio
                 if (instancia == null) {
-                    System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
+                    //System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
                     pduResposta.setErrorIndex(i + 1);
                     //no such name ... Nao devia ser este mas vai ser ...
                     pduResposta.setErrorStatus(2);
@@ -309,8 +309,8 @@ class Pedido implements Runnable{
             return pduRes;
         }
 
-        System.out.println(PDU.GET + " " + PDU.SET);
-        System.out.println(pdu.getType());
+        //System.out.println(PDU.GET + " " + PDU.SET);
+        //System.out.println(pdu.getType());
 
         if(!(pdu.getType() == PDU.GET || pdu.getType() == PDU.SET)) {
             pduRes.setErrorIndex(0);
@@ -342,7 +342,7 @@ public class Agent {
 
             client.close();
         }catch (Exception e){
-            System.out.println("acabou");
+            //System.out.println("acabou");
             return;
         }
         //Marcar a data de inicio
@@ -364,6 +364,7 @@ public class Agent {
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
             Thread t;
+            FlowController fc = new FlowController(2000, 50, 25); //(periodo, limite instantanio, limite ao longo do tempo (media temporal))
 
             while(true){
                 DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
@@ -373,9 +374,12 @@ public class Agent {
                 /*w = new Worker(pedido, pedidosRecebidos, mib);
                 t = new Thread(w);
                 t.start();*/
-                System.out.println("vou espear");
+                //System.out.println("vou espear");
                 //Thread.sleep(250);
-
+                if(fc.incrementar()){
+                    System.out.println("DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!DORMIR!!!!!!!!");
+                    Thread.sleep(2000);
+                }
             }
 
         } catch (IOException e) {
@@ -383,6 +387,66 @@ public class Agent {
         }
     }
 
+}
+
+class FlowController {
+
+    private int contador;
+    private int contadorTotal;
+    private long fixedTimer;
+    private long period;
+    private int upperInstantLimit;
+    private int upperTemporalLimit;
+
+    public FlowController(long p, int uIL, int uTL){
+
+        this.contador = 0;
+        this.contadorTotal = 0;
+        long delay = 0;
+        long period = p;
+        int inc = (int)period/1000;
+        this.fixedTimer = delay;
+        this.upperInstantLimit = uIL;
+        this.upperTemporalLimit = uTL;
+
+        TimerTask task = new TimerTask() {
+
+            public void run() {
+                System.out.println("NOVO CICLO => contador: " + contador);
+                contador = 0;
+                contadorTotal++;
+                fixedTimer += inc;
+
+            }
+        };
+
+        Timer timer = new Timer("Timer");
+
+        timer.schedule(task, delay, period);
+    }
+
+    public boolean incrementar(){
+        boolean flagInstantania = false;
+        boolean flagTemporal = false;
+        boolean res;
+        double media;
+
+        this.contador++;
+        this.contadorTotal++;
+
+        if(this.contador >= this.upperInstantLimit)
+            flagInstantania = true;
+        System.out.println("INCREMENTEI O CONTADOR PARA " + this.contador);
+
+        media = (double)this.contadorTotal/(double)this.fixedTimer;
+        System.out.println("ESTA é a media " + this.contadorTotal + " / " + this.fixedTimer + " = " + media);
+        if((!flagInstantania) && media > upperTemporalLimit)
+            flagTemporal = true;
+
+        res = flagInstantania || flagTemporal;
+
+    return res;
+    }
 }
 
 class Sender implements Runnable{
@@ -397,7 +461,7 @@ class Sender implements Runnable{
         int port = rand.nextInt(2000) + 6000;
         try {
             DatagramSocket ds = new DatagramSocket(port);
-            System.out.println("VOU ENVIAR UMA RESPOSTA PARA O: " + dp.getSocketAddress());
+            //System.out.println("VOU ENVIAR UMA RESPOSTA PARA O: " + dp.getSocketAddress());
             ds.send(dp);
         }
         catch(Exception e){
