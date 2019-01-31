@@ -1,4 +1,5 @@
 import java.text.DateFormat;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
@@ -7,6 +8,7 @@ import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.*;
+
 
 class CpuContainer{
     ContainerCreation container;
@@ -76,10 +78,15 @@ public class CpuMon implements Runnable{
                         Long cpuDelta = cpu.total - cpu.totalAnterior;
                         Long systemDelta = cpu.system - cpu.systemAnterior;
                         double totalPerc = (float) info.cpuStats().cpuUsage().percpuUsage().size();
-                        if (cpuDelta > 0 && systemDelta > 0)
+                        if (cpuDelta > 0 && systemDelta > 0) {
                             percentagemCpu = (double) cpuDelta / (double) systemDelta * totalPerc * 100;
+                        }
                         Instancia status = this.valores.get(cpu.statusContainer);
-                        status.valorStr = "" + percentagemCpu;
+                        String cpuPer = "" + percentagemCpu;
+                        if(cpuPer.length() < 5)
+                            status.valorStr = cpuPer + "%";
+                        else
+                            status.valorStr = cpuPer.substring(0,4) + "%";
                         valores.put(cpu.statusContainer, status);
                         cpu.totalAnterior = cpu.total;
                         cpu.systemAnterior = cpu.system;
@@ -89,7 +96,7 @@ public class CpuMon implements Runnable{
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 } catch (Exception e){
-                    System.out.println(e.getMessage());
+                    System.out.println("Deu erro: " + e.getMessage());
                 }
             }
         }

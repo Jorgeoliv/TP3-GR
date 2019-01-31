@@ -364,7 +364,7 @@ public class Agent {
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
             Thread t;
-            FlowController fc = new FlowController(2000, 50, 25); //(periodo, limite instantanio, limite ao longo do tempo (media temporal))
+            FlowController fc = new FlowController(1000, 10, 5 ,6); //(periodo, limite instantanio, limite ao longo do tempo (media temporal))
 
             while(true){
                 DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
@@ -392,27 +392,57 @@ public class Agent {
 class FlowController {
 
     private int contador;
+    private int contadorMomento[];
     private int contadorTotal;
     private long fixedTimer;
     private long period;
     private int upperInstantLimit;
+    private int upperMomentLimit;
     private int upperTemporalLimit;
 
-    public FlowController(long p, int uIL, int uTL){
+    private boolean flagMoment;
+    int i;
+    public FlowController(long p, int uIL, int uML, int uTL){
 
         this.contador = 0;
+        this.contadorMomento = new int[4];
+        Arrays.fill(this.contadorMomento, 0);
         this.contadorTotal = 0;
         long delay = 0;
         long period = p;
         int inc = (int)period/1000;
         this.fixedTimer = delay;
         this.upperInstantLimit = uIL;
+        this.upperMomentLimit = uML;
         this.upperTemporalLimit = uTL;
 
+        this.flagMoment = false;
+        double div = 1/(((double)p /1000) *4);
+        //System.out.println(p);
+        //System.out.println( "1 /" + "(" + (double)p /1000 + ") * 4" + " = " + div);
         TimerTask task = new TimerTask() {
 
             public void run() {
-                System.out.println("NOVO CICLO => contador: " + contador);
+
+                int sum, j;
+
+                if (i == 4)
+                    i = 0;
+
+                contadorMomento[i] = contador;
+                i++;
+                for (sum = 0, j = 0; j < 4; j++){
+                    sum += contadorMomento[j];
+                }
+
+                flagMoment = ((sum*div) > upperMomentLimit);
+
+                if(flagMoment)
+                    System.out.println("FOI O FLOW MOMENTANIO");
+
+                System.out.println("NOVO CICLO => contador: " + contador );
+
+
                 contador = 0;
                 contadorTotal++;
                 fixedTimer += inc;
@@ -434,16 +464,23 @@ class FlowController {
         this.contador++;
         this.contadorTotal++;
 
-        if(this.contador >= this.upperInstantLimit)
-            flagInstantania = true;
-        System.out.println("INCREMENTEI O CONTADOR PARA " + this.contador);
+        if(!flagMoment) {
+            if (this.contador >= this.upperInstantLimit) {
+                System.out.println("FOI O FLOW INSTANTANIO");
+                flagInstantania = true;
+            }
+            System.out.println("INCREMENTEI O CONTADOR PARA " + this.contador);
 
-        media = (double)this.contadorTotal/(double)this.fixedTimer;
-        System.out.println("ESTA é a media " + this.contadorTotal + " / " + this.fixedTimer + " = " + media);
-        if((!flagInstantania) && media > upperTemporalLimit)
-            flagTemporal = true;
+            media = (double) this.contadorTotal / (double) this.fixedTimer;
+            System.out.println("ESTA é a media " + this.contadorTotal + " / " + this.fixedTimer + " = " + media);
+            if ((!flagInstantania) && media > upperTemporalLimit){
+                flagTemporal = true;
+                System.out.println("FOI O FLOW TEMPORAL");
 
-        res = flagInstantania || flagTemporal;
+            }
+        }
+
+        res = flagInstantania || flagMoment || flagTemporal;
 
     return res;
     }
@@ -458,7 +495,7 @@ class Sender implements Runnable{
     public void run(){
         Random rand = new Random();
 
-        int port = rand.nextInt(2000) + 6000;
+        int port = rand.nextInt(40000) + 7000;
         try {
             DatagramSocket ds = new DatagramSocket(port);
             //System.out.println("VOU ENVIAR UMA RESPOSTA PARA O: " + dp.getSocketAddress());
