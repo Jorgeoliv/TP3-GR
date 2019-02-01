@@ -33,11 +33,13 @@ class Pedido implements Runnable{
     MIB mib;
     DatagramPacket pedido;
     HashSet<Integer32> pedidosRecebidos;
+    private Mongo db;
 
-    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos){
+    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos, Mongo db){
         this.mib = mib;
         this.pedido = pedido;
         this.pedidosRecebidos = pedidosRecebidos;
+        this.db = db;
     }
 
     public void run(){
@@ -76,6 +78,14 @@ class Pedido implements Runnable{
             securityName.decodeBER(berStream);
             //Agora o PDU já vai ficar carregado com a toda a informação do
             pdu.decodeBER(berStream);
+
+            String op;
+            if(pdu.getType() == PDU.GET)
+                op = "snmpget";
+            else
+                op = "snmpset";
+
+            db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), "TESTE");
 
             //System.out.println("O ID do pedido é " + pdu.getRequestID());
             if (pedidosRecebidos.contains(pdu.getRequestID())) {
@@ -147,7 +157,7 @@ class Pedido implements Runnable{
             //respondeSnmp.connect(snmp);
             //respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
 
-            (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort())))).start();
+            (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()), pdu))).start();
         }catch (Exception e){
             //System.out.println("ERRO: " + e.getMessage());
         }
@@ -353,23 +363,28 @@ public class Agent {
         MIB mib = new MIB(data);
         mib.carregaImagens(allImages);
 
+
         try {
             /**
              * Para poder estabelecer uma conexão com o net-snmp
              * Depois fica em escuta
              */
 
+            //Criar uma instancia de MongoDB
+            Mongo db = new Mongo("localhost", 27017);
+
             DatagramSocket serverSocket = new DatagramSocket(null);
             InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
+
             Thread t;
             FlowController fc = new FlowController(1000, 10, 5 ,6); //(periodo, limite instantanio, limite ao longo do tempo (media temporal))
 
             while(true){
                 DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
                 serverSocket.receive(pedido);
-                (new Thread(new Pedido(mib, pedido, pedidosRecebidos))).start();
+                (new Thread(new Pedido(mib, pedido, pedidosRecebidos, db))).start();
 
                 /*w = new Worker(pedido, pedidosRecebidos, mib);
                 t = new Thread(w);
@@ -382,7 +397,9 @@ public class Agent {
                 }
             }
 
-        } catch (IOException e) {
+        }
+
+        catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -488,7 +505,7 @@ class FlowController {
 
 class Sender implements Runnable{
     private DatagramPacket dp;
-    public Sender(DatagramPacket dp){
+    public Sender(DatagramPacket dp, PDU pdu){
         this.dp = dp;
     }
 
