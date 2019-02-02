@@ -85,11 +85,11 @@ class Pedido implements Runnable{
             else
                 op = "snmpset";
 
-            db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), "TESTE");
-
             //System.out.println("O ID do pedido é " + pdu.getRequestID());
             if (pedidosRecebidos.contains(pdu.getRequestID())) {
                 //System.out.println("Já analisei este pedido. Vou descartá-lo!!");
+                db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), pdu.getVariableBindings(), null,"ID REPETIDO");
+
                 return;
             }
             else {
@@ -113,14 +113,22 @@ class Pedido implements Runnable{
             if (valido == null) {
                 //Só um exemplo de como é que podemos carregar os objetos ... Depois mudará
                 Vector<? extends VariableBinding> vb = pdu.getVariableBindings();
-                if (pdu.getType() == PDU.GET)
+                if (pdu.getType() == PDU.GET) {
                     pduResposta = analisaVBGet(pduResposta, vb, mib);
-                else
+                    //System.out.println("RESPOSTA GET " + pduResposta.getVariableBindings().toString());
+                }
+                else {
                     pduResposta = analisaVBSet(pduResposta, vb, mib);
+                    //System.out.println("RESPOSTA SET " + pduResposta.toString());
+                }
+                db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), vb, pduResposta.getVariableBindings(), null);
 
-            } else
+            }
+            else {
                 pduResposta = valido;
+                db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), pdu.getVariableBindings(), pduResposta.getVariableBindings(), "COMMUNITY STRING OU OPERAÇÃO NÃO SUPORTADA");
 
+            }
             pduResposta.setType(PDU.RESPONSE);
             pduResposta.setRequestID(pdu.getRequestID());
             /**
@@ -152,11 +160,6 @@ class Pedido implements Runnable{
              * Para se conectar ao netsnmp
              * Depois é so enviar o byte[] resposta, que contém os bytes relativos à resposta do pedido
              */
-            //DatagramSocket respondeSnmp = new DatagramSocket(null);
-            //InetSocketAddress snmp = new InetSocketAddress(pedido.getAddress(), pedido.getPort());
-            //respondeSnmp.connect(snmp);
-            //respondeSnmp.send(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()));
-
             (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()), pdu))).start();
         }catch (Exception e){
             //System.out.println("ERRO: " + e.getMessage());

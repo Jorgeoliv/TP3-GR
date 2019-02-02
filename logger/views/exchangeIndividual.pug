@@ -1,0 +1,58 @@
+extends layout
+block content
+  h1 Troca Individual de Pacotes SNMP
+  
+  .w3-container(id="tabelaPrincipal")
+    .w3-card-4
+      table.w3-table-all
+        tr
+          th Dia
+          th Hora
+          th IP
+          th Porta
+          th ID
+          th Operação
+          th Community String
+          th 
+        tr
+          td= info.dia
+          td= info.hora
+          td= info.ip
+          td= info.port
+          td= info.pedido.id
+          td= info.pedido.operation
+          td= info.pedido.communityString
+  .w3-container
+    .w3-card-4
+      h3 Pedido
+        table.w3-table-all
+          tr
+            th Versão
+            th OIDs
+          tr
+            td= info.pedido.version
+            td
+              ul
+                each par in info.pedido.oids
+                  li 
+                    p OID 
+                      =par.oid
+                  li 
+                    p Valor 
+                      =par.value
+    .w3-container
+    .w3-card-4
+      h3 Resposta
+        table.w3-table-all
+          tr
+            th VBs
+          tr
+            td
+              ul
+                each par in info.resposta.vbs
+                  li 
+                    p OID 
+                      =par.oid
+                  li 
+                    p Valor 
+                      =par.value

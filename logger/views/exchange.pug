@@ -1,0 +1,28 @@
+extends layout
+block content
+  h1 Troca de Pacotes SNMP
+  
+  .w3-container(id="tabelaPrincipal")
+    .w3-card-4
+      table.w3-table-all
+        tr
+          th Dia
+          th Hora
+          th IP
+          th Porta
+          th ID
+          th Operação
+          th Community String
+          th 
+        each troca in info
+          tr
+            td= troca.dia
+            td= troca.hora
+            td= troca.ip
+            td= troca.port
+            td= troca.pedido.id
+            td= troca.pedido.operation
+            td= troca.pedido.communityString
+            td
+              -var url = "http://localhost:3000/exchangeIndividual?id=" + troca.pedido.id
+              button.w3-button.w3-round.large-w3-teal(onclick="location.href ='" + url + "'" ) Analisar!
