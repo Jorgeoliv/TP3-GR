@@ -118,7 +118,7 @@ module.exports.listarCS = (cs) => { //USADO
 
 module.exports.listarDiaHora = (d, h) => {
     return Pedidos
-            .find({dia: {$gte: d}, hora: {$gte: h}})
+            .find({dia: {$gt: d}, hora: {$gt: h}})
             .sort({dia: -1, hora: -1})
             .exec()
 }

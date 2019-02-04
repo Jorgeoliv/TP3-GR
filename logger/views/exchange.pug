@@ -2,9 +2,22 @@ extends layout
 block content
   h1 Troca de Pacotes SNMP
   
-  .w3-container(id="tabelaPrincipal")
+  .w3-container
     .w3-card-4
-      table.w3-table-all
+      if(info[0] != undefined)
+        h3 Último Troca de Pacotes SNMP foi realizada a:
+          .w3-container 
+            h4(id="dia" name=info[0].dia) Dia => 
+              = info[0].dia
+            h4(id="hora" name=info[0].hora) Hora =>
+              = info[0].hora
+      else
+        h3 Último Troca de Pacotes SNMP foi realizada a:
+          .w3-container 
+            h4(id="dia" name="")
+            h4(id="hora" name="")
+
+      table.w3-table-all(id="tabelaPrincipal")
         tr
           th Dia
           th Hora
