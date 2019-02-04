@@ -34,12 +34,14 @@ class Pedido implements Runnable{
     DatagramPacket pedido;
     HashSet<Integer32> pedidosRecebidos;
     private Mongo db;
+    private FlowController fc;
 
-    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos, Mongo db){
+    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos, Mongo db, FlowController fc){
         this.mib = mib;
         this.pedido = pedido;
         this.pedidosRecebidos = pedidosRecebidos;
         this.db = db;
+        this.fc = fc;
     }
 
     public void run(){
@@ -387,7 +389,7 @@ public class Agent {
             while(true){
                 DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
                 serverSocket.receive(pedido);
-                (new Thread(new Pedido(mib, pedido, pedidosRecebidos, db))).start();
+                (new Thread(new Pedido(mib, pedido, pedidosRecebidos, db ,fc))).start();
 
                 /*w = new Worker(pedido, pedidosRecebidos, mib);
                 t = new Thread(w);
@@ -503,6 +505,37 @@ class FlowController {
         res = flagInstantania || flagMoment || flagTemporal;
 
     return res;
+    }
+    public long getPeriod(){
+        return this.period;
+    }
+
+    public int getUIL(){
+        return this.upperInstantLimit;
+    }
+
+    public int getUML(){
+        return this.upperMomentLimit;
+    }
+
+    public int getUTL(){
+        return this.upperTemporalLimit;
+    }
+
+    public void setPeriod(long val){
+        this.period = val;
+    }
+
+    public void setUIL(int val){
+        this.upperInstantLimit = val;
+    }
+
+    public void setUML(int val){
+        this.upperMomentLimit = val;
+    }
+
+    public void setUTL(int val){
+        this.upperTemporalLimit = val;
     }
 }
 
