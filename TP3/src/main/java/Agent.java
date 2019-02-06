@@ -178,7 +178,7 @@ class Pedido implements Runnable{
      * @param mib
      * @return
      */
-    private static PDU analisaVBSet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
+    private PDU analisaVBSet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
 
         /**
          * Possivel solução (para ter o set funcional para as 3 instancias):
@@ -193,21 +193,41 @@ class Pedido implements Runnable{
             pduResposta.setErrorStatus(1);
             pduResposta.setErrorIndex(1);
         }else{
+
             int indiceImage = -1, indiceContainer = -1, indiceStatus = -1;
             String oidImage = null, oidContainer = null, oidStatus = null;
             int indiceError = -1;
 
             for(int i = 0; i<numOIDs && indiceError == -1; i++){
                 String oid = vb.get(i).getOid().toString();
-                switch(oid){
-                    case "1.3.6.1.3.6000.1.1.0": indiceImage = i; oidImage = oid.substring(15); break;
-                    case "1.3.6.1.3.6000.1.2.0": indiceContainer = i; oidContainer = oid.substring(15); break;
-                    default:
-                        if(oid.startsWith("1.3.6.1.3.6000.3.2.4")){
-                            indiceStatus = i; oidStatus = oid.substring(15);
-                        }
-                        else
-                            indiceError = i;
+
+                if(oid.startsWith("1.3.1.3.6000.5.1.")){
+                    int indice = Integer.parseInt(oid.substring(17));
+                    System.out.println("O indice é: " + indice + " <<<<<======");
+                    //se o indice  não for o correto deve devolver "true" para o erro
+                    boolean erro = fc.setValorInstancia(indice);
+                    if(erro){
+                        indiceError = i;
+                    }
+                }
+                else {
+
+                    switch (oid) {
+                        case "1.3.6.1.3.6000.1.1.0":
+                            indiceImage = i;
+                            oidImage = oid.substring(15);
+                            break;
+                        case "1.3.6.1.3.6000.1.2.0":
+                            indiceContainer = i;
+                            oidContainer = oid.substring(15);
+                            break;
+                        default:
+                            if (oid.startsWith("1.3.6.1.3.6000.3.2.4")) {
+                                indiceStatus = i;
+                                oidStatus = oid.substring(15);
+                            } else
+                                indiceError = i;
+                    }
                 }
             }
 
@@ -260,7 +280,7 @@ class Pedido implements Runnable{
      * @param mib
      * @return
      */
-    private static PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
+    private PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
 
         for (int i = 0; i < vb.size(); i++) {
             VariableBinding v = vb.get(i);
@@ -273,29 +293,43 @@ class Pedido implements Runnable{
              * Depois temos de validar se o que vamos receber é um int ou um integer, para criar a "Variable" correta
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
-            if(!oid.startsWith("1.3.6.1.3.6000.")){
-                //System.out.println("O caminho inicial nao é correto...");
-                pduResposta.setErrorIndex(0);
-                pduResposta.setErrorStatus(2);
-            }else {
 
-                Instancia instancia = mib.getOID(oid.substring(15));
-
-                //ver se é diferente null (existe?), mandar o valor consoante o tipo
-                //se no int for -1 ou na string null , mandamos o null, para o utilizador saber que esta vazio
-                if (instancia == null) {
-                    //System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
-                    pduResposta.setErrorIndex(i + 1);
-                    //no such name ... Nao devia ser este mas vai ser ...
+            if(oid.startsWith("1.3.1.3.6000.5.1.")){
+                int indice = Integer.parseInt(oid.substring(17));
+                System.out.println("O indice é: " + indice + " <<<<<======");
+                int val = fc.valorInstancia(indice);
+                if(val == -1){
+                    pduResposta.setErrorIndex(0);
                     pduResposta.setErrorStatus(2);
-                    break;
+                }else{
+                    v.setVariable(new Integer32(val));
+                }
+            }
+            else {
+                if (!oid.startsWith("1.3.6.1.3.6000.")) {
+                    //System.out.println("O caminho inicial nao é correto...");
+                    pduResposta.setErrorIndex(0);
+                    pduResposta.setErrorStatus(2);
                 } else {
-                    if (instancia.eInteiro) {
-                        if (instancia.valorInt != -1)
-                            v.setVariable(new Integer32(instancia.valorInt));
+
+                    Instancia instancia = mib.getOID(oid.substring(15));
+
+                    //ver se é diferente null (existe?), mandar o valor consoante o tipo
+                    //se no int for -1 ou na string null , mandamos o null, para o utilizador saber que esta vazio
+                    if (instancia == null) {
+                        //System.out.println("Não foi feito um match com a nossa MIB! Logo não é valido o objeto ...");
+                        pduResposta.setErrorIndex(i + 1);
+                        //no such name ... Nao devia ser este mas vai ser ...
+                        pduResposta.setErrorStatus(2);
+                        break;
                     } else {
-                        if (instancia.valorStr != null)
-                            v.setVariable(new OctetString(instancia.valorStr));
+                        if (instancia.eInteiro) {
+                            if (instancia.valorInt != -1)
+                                v.setVariable(new Integer32(instancia.valorInt));
+                        } else {
+                            if (instancia.valorStr != null)
+                                v.setVariable(new OctetString(instancia.valorStr));
+                        }
                     }
                 }
             }
