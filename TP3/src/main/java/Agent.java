@@ -35,13 +35,19 @@ class Pedido implements Runnable{
     HashSet<Integer32> pedidosRecebidos;
     private Mongo db;
     private FlowController fc;
+    private ArrayList <String> Admin;
+    private ArrayList <String> GetSet;
+    private ArrayList <String> Get;
 
-    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos, Mongo db, FlowController fc){
+    public Pedido(MIB mib, DatagramPacket pedido, HashSet<Integer32> pedidosRecebidos, Mongo db, FlowController fc, ArrayList <String> Admin, ArrayList <String> GetSet, ArrayList <String> Get){
         this.mib = mib;
         this.pedido = pedido;
         this.pedidosRecebidos = pedidosRecebidos;
         this.db = db;
         this.fc = fc;
+        this.Admin = Admin;
+        this.GetSet= GetSet;
+        this.Get = Get;
     }
 
     public void run(){
@@ -107,7 +113,7 @@ class Pedido implements Runnable{
              * Vai depender da nossa implementação ... Mas é obrigatório passar o PDU
              */
 
-            PDU valido = analisaPacote(securityName, pdu);
+            PDU valido = analisaPacote(securityName, pdu, Admin, GetSet, Get);
             PDU pduResposta = new PDU();
 
             boolean erro = false;
@@ -116,11 +122,40 @@ class Pedido implements Runnable{
                 //Só um exemplo de como é que podemos carregar os objetos ... Depois mudará
                 Vector<? extends VariableBinding> vb = pdu.getVariableBindings();
                 if (pdu.getType() == PDU.GET) {
-                    pduResposta = analisaVBGet(pduResposta, vb, mib);
+                    pduResposta = analisaVBGet(pduResposta, vb, mib, securityName.toString());
                     //System.out.println("RESPOSTA GET " + pduResposta.getVariableBindings().toString());
                 }
                 else {
-                    pduResposta = analisaVBSet(pduResposta, vb, mib);
+                    if(Admin.contains(securityName.toString()) && pedido.getAddress().toString().equals("/127.0.0.1")){
+                        int indiceError = -1;
+                        for(int i = 0; i<vb.size() && indiceError == -1; i++){
+                            String oid = vb.get(i).getOid().toString();
+                            if (oid.startsWith("1.3.6.1.3.6000.5.1.")) {
+                                String indice = oid.substring(19);
+                                System.out.println("O indice é: " + indice + " <<<<<======");
+                                //se o indice  não for o correto deve devolver "true" para o erro
+                                boolean erroAdmin = fc.setValorInstancia(indice, vb.get(i).getVariable().toInt());
+                                System.out.println("O erro admin é: " + erroAdmin);
+                                if (erroAdmin) {
+                                    System.out.println(("Ebrei aqui"));
+                                    indiceError = i;
+                                    pduResposta.setErrorStatus(4);
+                                    pduResposta.setErrorIndex(i+1);
+                                }
+                            }
+                            else{
+                                indiceError = i;
+                                pduResposta.setErrorStatus(16);
+                                pduResposta.setErrorIndex(i+1);
+                            }
+                        }
+
+                        (new Thread(fc)).start();
+
+                        pduResposta.setVariableBindings(vb);
+                    }
+                    else
+                        pduResposta = analisaVBSet(pduResposta, vb, mib);
                     //System.out.println("RESPOSTA SET " + pduResposta.toString());
                 }
                 db.insert(pdu.getRequestID().toString(), pedido.getAddress().toString(), "" + pedido.getPort(), op, version.toString(), securityName.toString(), vb, pduResposta.getVariableBindings(), null);
@@ -201,17 +236,6 @@ class Pedido implements Runnable{
             for(int i = 0; i<numOIDs && indiceError == -1; i++){
                 String oid = vb.get(i).getOid().toString();
 
-                if(oid.startsWith("1.3.1.3.6000.5.1.")){
-                    int indice = Integer.parseInt(oid.substring(17));
-                    System.out.println("O indice é: " + indice + " <<<<<======");
-                    //se o indice  não for o correto deve devolver "true" para o erro
-                    boolean erro = fc.setValorInstancia(indice);
-                    if(erro){
-                        indiceError = i;
-                    }
-                }
-                else {
-
                     switch (oid) {
                         case "1.3.6.1.3.6000.1.1.0":
                             indiceImage = i;
@@ -222,49 +246,50 @@ class Pedido implements Runnable{
                             oidContainer = oid.substring(15);
                             break;
                         default:
-                            if (oid.startsWith("1.3.6.1.3.6000.3.2.4")) {
+                            if (oid.startsWith("1.3.6.1.3.6000.3.2.1.4")) {
+                                System.out.println("TOU AQUIIIIIII");
                                 indiceStatus = i;
                                 oidStatus = oid.substring(15);
                             } else
                                 indiceError = i;
                     }
                 }
-            }
+
 
             if(indiceError != -1){
                 pduResposta.setErrorIndex(indiceError + 1);
                 pduResposta.setErrorStatus(2);
             }
-            else{
-                if((oidImage != null && oidContainer == null) || (oidImage == null && oidContainer != null)){
+            else {
+                if ((oidImage != null && oidContainer == null) || (oidImage == null && oidContainer != null)) {
                     //System.out.println("Combinação nao é valida!");
                     pduResposta.setErrorIndex(0);
                     pduResposta.setErrorStatus(3);
-                }else{
+                } else {
                     FeedbackSet fbs = new FeedbackSet();
-                    if(oidStatus != null){
+                    if (oidStatus != null) {
                         fbs = mib.setOIDStatusContainership(oidStatus, vb.get(indiceStatus).getVariable().toString(), indiceStatus);
                     }
-                    if(oidContainer != null && oidImage != null && !fbs.erro){
+                    if (oidContainer != null && oidImage != null && !fbs.erro) {
                         try {
                             int valorI = vb.get(indiceImage).getVariable().toInt();
                             String valorC = vb.get(indiceContainer).getVariable().toString();
                             fbs = mib.setOIDParam(oidImage, valorI, indiceImage, oidContainer, valorC, indiceContainer);
-                        }catch(UnsupportedOperationException e){
+                        } catch (UnsupportedOperationException e) {
                             //System.out.println("Deu um erro de valores invalidos");
                             pduResposta.setErrorIndex(indiceImage + 1);
                             pduResposta.setErrorStatus(7);
                         }
                     }
 
-                    if(fbs.erro){
+                    if (fbs.erro) {
                         pduResposta.setErrorIndex(fbs.errorIndex);
                         pduResposta.setErrorStatus(fbs.errorStatus);
                     }
 
                 }
-
             }
+
         }
 
         pduResposta.setVariableBindings(vb);
@@ -280,7 +305,7 @@ class Pedido implements Runnable{
      * @param mib
      * @return
      */
-    private PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib) {
+    private PDU analisaVBGet(PDU pduResposta, Vector<? extends VariableBinding> vb, MIB mib, String cs) {
 
         for (int i = 0; i < vb.size(); i++) {
             VariableBinding v = vb.get(i);
@@ -293,17 +318,25 @@ class Pedido implements Runnable{
              * Depois temos de validar se o que vamos receber é um int ou um integer, para criar a "Variable" correta
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
-
-            if(oid.startsWith("1.3.1.3.6000.5.1.")){
-                int indice = Integer.parseInt(oid.substring(17));
-                System.out.println("O indice é: " + indice + " <<<<<======");
-                int val = fc.valorInstancia(indice);
-                if(val == -1){
-                    pduResposta.setErrorIndex(0);
-                    pduResposta.setErrorStatus(2);
-                }else{
-                    v.setVariable(new Integer32(val));
+            System.out.println("Vou fazer get!!");
+            if(oid.startsWith("1.3.6.1.3.6000.5.1.")){
+                System.out.println("este é o adress: " + pedido.getAddress().toString());
+                if (Admin.contains(cs) && pedido.getAddress().toString().equals("/127.0.0.1")) {
+                    String indice = oid.substring(19);
+                    System.out.println("O indice é: " + indice + " <<<<<======");
+                    int val = fc.valorInstancia(indice);
+                    if (val == -1) {
+                        pduResposta.setErrorIndex(i+1);
+                        pduResposta.setErrorStatus(2);
+                    } else {
+                        v.setVariable(new Integer32(val));
+                    }
                 }
+                else{
+                    pduResposta.setErrorStatus(16);
+                    pduResposta.setErrorIndex(i+1);
+                }
+
             }
             else {
                 if (!oid.startsWith("1.3.6.1.3.6000.")) {
@@ -347,10 +380,45 @@ class Pedido implements Runnable{
      * Podemos tambem verificar a versao
      * @return
      */
-    private static PDU analisaPacote(OctetString securityName, PDU pdu) {
+    private static PDU analisaPacote(OctetString securityName, PDU pdu, ArrayList <String> Admin, ArrayList <String> GetSet, ArrayList <String> Get) {
 
         PDU pduRes = new PDU();
 
+        if (pdu.getType() == PDU.GET){
+            if (!(Admin.contains(securityName.toString()) || GetSet.contains(securityName.toString()) || Get.contains(securityName.toString()))){
+                //authorizationerror
+                pduRes.setErrorStatus(16);
+                pduRes.setErrorIndex(0);
+                return pduRes;
+            }
+        }
+        else{
+            if (pdu.getType() == PDU.SET){
+                if (!(Admin.contains(securityName.toString()) || GetSet.contains(securityName.toString()) || Get.contains(securityName.toString()))){
+                    //authorizationerror
+                    pduRes.setErrorStatus(16);
+                    pduRes.setErrorIndex(0);
+                    return pduRes;
+                }
+                else{
+                    if (Get.contains(securityName.toString())){
+                        //ERRO DE NAO PERMIÇÃO
+                        pduRes.setErrorStatus(16);
+                        pduRes.setErrorIndex(0);
+                        return pduRes;
+                    }
+                }
+            }
+            else{
+                pduRes.setErrorIndex(0);
+                pduRes.setErrorStatus(19);
+                return pduRes;
+            }
+        }
+
+        return null;
+
+/*
         if(!(securityName.toString().equals("public") || securityName.toString().equals("TP3GR"))) {
             //authorizationerror
             pduRes.setErrorStatus(16);
@@ -366,9 +434,7 @@ class Pedido implements Runnable{
             pduRes.setErrorStatus(19);
             return pduRes;
         }
-
-
-        return null;
+*/
     }
 }
 
@@ -381,8 +447,46 @@ public class Agent {
     public static void main(String[] args) throws /*DockerCertificateException, DockerException,*/ InterruptedException {
         HashSet<Integer32> pedidosRecebidos = new HashSet<>();
 
+
+
+
         List allImages = null;
+        ArrayList <String> Admin = null;
+        ArrayList <String> GetSet = null;
+        ArrayList <String> Get = null;
         try {
+
+
+            //CARREGA COMMUNITY STRINGS
+
+            File file = new File("./CommunityStrings.txt");
+            Scanner sc = new Scanner(file);
+            String cs = "";
+            Admin = new ArrayList<String>();
+            GetSet = new ArrayList<String>();
+            Get = new ArrayList<String>();
+
+            while (sc.hasNextLine()){
+                cs = sc.nextLine();
+                if (cs.startsWith("Admin")){
+                    Admin.add(cs.split(":")[1]);
+                }
+                else{
+                    if (cs.startsWith("GetSet")){
+                        GetSet.add(cs.split(":")[1]);
+                    }
+                    else{
+                        if (cs.startsWith("Get")){
+                            Get.add(cs.split(":")[1]);
+                        }
+                    }
+                }
+            }
+
+            System.out.println("ADMIN: " + Admin.toString());
+            System.out.println("GETSET: " + GetSet.toString());
+            System.out.println("GET: " + Get.toString());
+
             final DockerClient client = DefaultDockerClient
                     .fromEnv()
                     .build();
@@ -419,11 +523,12 @@ public class Agent {
 
             Thread t;
             FlowController fc = new FlowController(1000, 10, 5 ,6); //(periodo, limite instantanio, limite ao longo do tempo (media temporal))
+            (new Thread (fc)).start();
 
             while(true){
                 DatagramPacket pedido = new DatagramPacket(new byte[10240], 10240);
                 serverSocket.receive(pedido);
-                (new Thread(new Pedido(mib, pedido, pedidosRecebidos, db ,fc))).start();
+                (new Thread(new Pedido(mib, pedido, pedidosRecebidos, db , fc, Admin, GetSet, Get))).start();
 
                 /*w = new Worker(pedido, pedidosRecebidos, mib);
                 t = new Thread(w);
@@ -445,38 +550,43 @@ public class Agent {
 
 }
 
-class FlowController {
+class FlowController implements  Runnable {
 
     private int contador;
     private int contadorMomento[];
     private int contadorTotal;
     private long fixedTimer;
-    private long period;
+    private int period;
+    private int periodAnt;
     private int upperInstantLimit;
     private int upperMomentLimit;
     private int upperTemporalLimit;
+    private TimerTask task;
+    private Timer timer;
 
     private boolean flagMoment;
     int i;
-    public FlowController(long p, int uIL, int uML, int uTL){
+    public FlowController(int p, int uIL, int uML, int uTL){
 
         this.contador = 0;
         this.contadorMomento = new int[4];
         Arrays.fill(this.contadorMomento, 0);
         this.contadorTotal = 0;
-        long delay = 0;
-        long period = p;
-        int inc = (int)period/1000;
-        this.fixedTimer = delay;
+        this.period = p;
+        this.periodAnt = p;
+        int inc = period/1000;
+        this.fixedTimer = 0;
         this.upperInstantLimit = uIL;
         this.upperMomentLimit = uML;
         this.upperTemporalLimit = uTL;
 
         this.flagMoment = false;
-        double div = 1/(((double)p /1000) *4);
+        double div = 1/(((double)this.period /1000) *4);
         //System.out.println(p);
         //System.out.println( "1 /" + "(" + (double)p /1000 + ") * 4" + " = " + div);
-        TimerTask task = new TimerTask() {
+        this.timer = new Timer("Timer");
+
+        this.task = new TimerTask() {
 
             public void run() {
 
@@ -487,28 +597,77 @@ class FlowController {
 
                 contadorMomento[i] = contador;
                 i++;
-                for (sum = 0, j = 0; j < 4; j++){
+                for (sum = 0, j = 0; j < 4; j++) {
                     sum += contadorMomento[j];
                 }
 
-                flagMoment = ((sum*div) > upperMomentLimit);
+                flagMoment = ((sum * div) > upperMomentLimit);
 
-                if(flagMoment)
+                if (flagMoment)
                     System.out.println("FOI O FLOW MOMENTANIO");
 
-                System.out.println("NOVO CICLO => contador: " + contador );
+                System.out.println("NOVO CICLO => contador: " + contador);
 
 
                 contador = 0;
                 contadorTotal++;
+                if (fixedTimer > 999999999)
+                    fixedTimer = 0;
                 fixedTimer += inc;
 
+                if (period != periodAnt){
+                    periodAnt = period;
+                    timer.cancel();
+                    timer.purge();
+                    System.out.println("MATEI O TIMER 1");
+                }
             }
         };
+    }
 
-        Timer timer = new Timer("Timer");
+    public void run(){
+        this.timer = null;
+        this.timer = new Timer();
+        this.task = new TimerTask() {
 
-        timer.schedule(task, delay, period);
+            public void run() {
+                int inc = period/1000;
+                double div = 1/(((double)period /1000) *4);
+
+                int sum, j;
+
+                if (i == 4)
+                    i = 0;
+
+                contadorMomento[i] = contador;
+                i++;
+                for (sum = 0, j = 0; j < 4; j++) {
+                    sum += contadorMomento[j];
+                }
+
+                flagMoment = ((sum * div) > upperMomentLimit);
+
+                if (flagMoment)
+                    System.out.println("FOI O FLOW MOMENTANIO");
+
+                System.out.println("NOVO CICLO => contador: " + contador);
+
+
+                contador = 0;
+                contadorTotal++;
+                if (fixedTimer > 999999999)
+                    fixedTimer = 0;
+                fixedTimer += inc;
+
+                if (period != periodAnt){
+                    periodAnt = period;
+                    timer.cancel();
+                    timer.purge();
+                    System.out.println("MATEI O TIMER 2");
+                }
+            }
+        };
+        this.timer.schedule(this.task, 0, this.period);
     }
 
     public boolean incrementar(){
@@ -540,36 +699,45 @@ class FlowController {
 
     return res;
     }
-    public long getPeriod(){
-        return this.period;
+
+
+    public synchronized boolean setValorInstancia(String indice, int val) {
+
+        if(val < 1)
+            return true;
+
+        switch (indice){
+            case "1":
+                this.period = val;
+                return false;
+            case "2":
+                this.upperInstantLimit = val;
+                return false;
+            case "3":
+                this.upperMomentLimit = val;
+                return false;
+            case "4":
+                this.upperTemporalLimit = val;
+                return false;
+            default:
+                return true;
+        }
     }
 
-    public int getUIL(){
-        return this.upperInstantLimit;
-    }
+    public int valorInstancia(String indice) {
 
-    public int getUML(){
-        return this.upperMomentLimit;
-    }
-
-    public int getUTL(){
-        return this.upperTemporalLimit;
-    }
-
-    public void setPeriod(long val){
-        this.period = val;
-    }
-
-    public void setUIL(int val){
-        this.upperInstantLimit = val;
-    }
-
-    public void setUML(int val){
-        this.upperMomentLimit = val;
-    }
-
-    public void setUTL(int val){
-        this.upperTemporalLimit = val;
+        switch (indice){
+            case "1":
+                return this.period;
+            case "2":
+                return this.upperInstantLimit;
+            case "3":
+                return this.upperMomentLimit;
+            case "4":
+                return this.upperTemporalLimit;
+            default:
+                return -1;
+        }
     }
 }
 
