@@ -132,12 +132,9 @@ class Pedido implements Runnable{
                             String oid = vb.get(i).getOid().toString();
                             if (oid.startsWith("1.3.6.1.3.6000.5.1.")) {
                                 String indice = oid.substring(19);
-                                System.out.println("O indice é: " + indice + " <<<<<======");
                                 //se o indice  não for o correto deve devolver "true" para o erro
                                 boolean erroAdmin = fc.setValorInstancia(indice, vb.get(i).getVariable().toInt());
-                                System.out.println("O erro admin é: " + erroAdmin);
                                 if (erroAdmin) {
-                                    System.out.println(("Ebrei aqui"));
                                     indiceError = i;
                                     pduResposta.setErrorStatus(4);
                                     pduResposta.setErrorIndex(i+1);
@@ -199,7 +196,7 @@ class Pedido implements Runnable{
              */
             (new Thread(new Sender(new DatagramPacket(resposta, resposta.length, pedido.getAddress(), pedido.getPort()), pdu))).start();
         }catch (Exception e){
-            //System.out.println("ERRO: " + e.getMessage());
+            System.out.println("ERRO: " + e.getMessage());
         }
     }
 
@@ -247,7 +244,6 @@ class Pedido implements Runnable{
                             break;
                         default:
                             if (oid.startsWith("1.3.6.1.3.6000.3.2.1.4")) {
-                                System.out.println("TOU AQUIIIIIII");
                                 indiceStatus = i;
                                 oidStatus = oid.substring(15);
                             } else
@@ -318,12 +314,9 @@ class Pedido implements Runnable{
              * Depois temos de validar se o que vamos receber é um int ou um integer, para criar a "Variable" correta
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
-            System.out.println("Vou fazer get!!");
             if(oid.startsWith("1.3.6.1.3.6000.5.1.")){
-                System.out.println("este é o adress: " + pedido.getAddress().toString());
                 if (Admin.contains(cs) && pedido.getAddress().toString().equals("/127.0.0.1")) {
                     String indice = oid.substring(19);
-                    System.out.println("O indice é: " + indice + " <<<<<======");
                     int val = fc.valorInstancia(indice);
                     if (val == -1) {
                         pduResposta.setErrorIndex(i+1);
@@ -418,23 +411,6 @@ class Pedido implements Runnable{
 
         return null;
 
-/*
-        if(!(securityName.toString().equals("public") || securityName.toString().equals("TP3GR"))) {
-            //authorizationerror
-            pduRes.setErrorStatus(16);
-            pduRes.setErrorIndex(0);
-            return pduRes;
-        }
-
-        //System.out.println(PDU.GET + " " + PDU.SET);
-        //System.out.println(pdu.getType());
-
-        if(!(pdu.getType() == PDU.GET || pdu.getType() == PDU.SET)) {
-            pduRes.setErrorIndex(0);
-            pduRes.setErrorStatus(19);
-            return pduRes;
-        }
-*/
     }
 }
 
@@ -497,7 +473,7 @@ public class Agent {
 
             client.close();
         }catch (Exception e){
-            //System.out.println("acabou");
+            System.out.println("acabou");
             return;
         }
         //Marcar a data de inicio
@@ -584,8 +560,6 @@ class FlowController implements  Runnable {
 
         this.flagMoment = false;
         double div = 1/(((double)this.period /1000) *4);
-        //System.out.println(p);
-        //System.out.println( "1 /" + "(" + (double)p /1000 + ") * 4" + " = " + div);
         this.timer = new Timer("Timer");
 
         this.task = new TimerTask() {
@@ -674,7 +648,6 @@ class FlowController implements  Runnable {
                     periodAnt = period;
                     timer.cancel();
                     timer.purge();
-                    System.out.println("MATEI O TIMER 2 " + periodAnt);
                 }
             }
         };
@@ -695,10 +668,8 @@ class FlowController implements  Runnable {
                 System.out.println("FOI O FLOW INSTANTANIO");
                 flagInstantania = true;
             }
-            System.out.println("INCREMENTEI O CONTADOR PARA " + this.contador);
 
             media = (double) this.contadorTotal / (double) this.fixedTimer;
-            System.out.println("ESTA é a media " + this.contadorTotal + " / " + this.fixedTimer + " = " + media);
             if ((!flagInstantania) && media > upperTemporalLimit){
                 flagTemporal = true;
                 System.out.println("FOI O FLOW TEMPORAL");
