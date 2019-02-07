@@ -1,3 +1,4 @@
+udpPort:6001
 Admin:admin
 GetSet:priv
 Get:public

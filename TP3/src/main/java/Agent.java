@@ -449,7 +449,7 @@ public class Agent {
 
 
 
-
+        int port = 6000;
         List allImages = null;
         ArrayList <String> Admin = null;
         ArrayList <String> GetSet = null;
@@ -465,6 +465,8 @@ public class Agent {
             Admin = new ArrayList<String>();
             GetSet = new ArrayList<String>();
             Get = new ArrayList<String>();
+
+            port = Integer.parseInt(sc.nextLine().split("udpPort:")[1]);
 
             while (sc.hasNextLine()){
                 cs = sc.nextLine();
@@ -517,7 +519,7 @@ public class Agent {
             Mongo db = new Mongo("localhost", 27017);
 
             DatagramSocket serverSocket = new DatagramSocket(null);
-            InetSocketAddress s = new InetSocketAddress("127.0.0.1",6000);
+            InetSocketAddress s = new InetSocketAddress("127.0.0.1",port);
             serverSocket.bind(s);
             //Poderá não ser necessário um byte com um tamanho tao grande, mas é so uma questão de depois mudarmos se quisermos ...
 

@@ -23,7 +23,7 @@ containershipMIB MODULE-IDENTITY
                 Portugal
       email:    gestao-redes@di.uminho.pt"
     DESCRIPTION
-	    "MIB objects for RFID Monitoring"
+	    "MIB objects for Container Creation"
     REVISION     "201811161430Z"  -- tem de ser igual a LAST-UPDATE!
     DESCRIPTION
         "Primeira versao"
@@ -34,7 +34,7 @@ containershipParam       OBJECT IDENTIFIER ::= { containershipMIB 1 }
 containershipImage       OBJECT IDENTIFIER ::= { containershipMIB 2 }
 containershipContainer   OBJECT IDENTIFIER ::= { containershipMIB 3 }
 containershipStatus     OBJECT IDENTIFIER ::= { containershipMIB 4 }
-
+containershipSecurity     OBJECT IDENTIFIER ::= { containershipMIB 5 }
 --
 -- scalars: zonaId, zonaDesc, nAreas...
 --
@@ -204,12 +204,52 @@ containershipContainerProcessor OBJECT-TYPE
 -- vamos colocar todos os nomes começados por "status"
 --
 
-statusIniciate OBJECT-TYPE
+containershipStatusIniciate OBJECT-TYPE
     SYNTAX      DisplayString
     MAX-ACCESS  read-only
     STATUS      current
     DESCRIPTION
 	"Data de inicio do agente"
     ::= { containershipStatus 1 }
+
+containershipStatusLastContainer OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+	"Data da última criação de um container"
+    ::= { containershipStatus 2 }
+
+containershipSecurityPeriodo OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+	"Periodo de reset dos contadores dos limites"
+    ::= { containershipSecurity 1 }
+
+containershipSecurityInstantLimit OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+    "Limite de pacotes processados por Período"
+    ::= { containershipSecurity 2 }
+
+containershipSecurityMomentLimit OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+	"Limite médio de pacotes processados nos últimos 4 Periodos"
+    ::= { containershipSecurity 3 }
+
+containershipSecurityTemporalLimit OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+	"Limite médio de pacotes processados no tempo de execussão do programa"
+    ::= { containershipSecurity 4 }
 
 END
