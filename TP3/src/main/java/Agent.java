@@ -621,11 +621,20 @@ class FlowController implements  Runnable {
                     timer.purge();
                     System.out.println("MATEI O TIMER 1");
                 }
+                else{
+                    System.out.println("NAO MATEI O TIMER");
+                }
             }
         };
     }
 
     public void run(){
+        try {
+            Thread.sleep(this.period);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("ACORDEI");
         this.timer = null;
         this.timer = new Timer();
         this.task = new TimerTask() {
@@ -663,11 +672,11 @@ class FlowController implements  Runnable {
                     periodAnt = period;
                     timer.cancel();
                     timer.purge();
-                    System.out.println("MATEI O TIMER 2");
+                    System.out.println("MATEI O TIMER 2 " + periodAnt);
                 }
             }
         };
-        this.timer.schedule(this.task, 0, this.period);
+        this.timer.schedule(this.task, this.period*2, this.period);
     }
 
     public boolean incrementar(){
