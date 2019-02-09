@@ -43,7 +43,7 @@ containershipSecurity     OBJECT IDENTIFIER ::= { containershipMIB 5 }
 -- Para o containershipParams
 --
 
-imageIndex OBJECT-TYPE
+containershipParamImage OBJECT-TYPE
     SYNTAX      Integer32
     MAX-ACCESS  read-write
     STATUS      current
@@ -51,7 +51,7 @@ imageIndex OBJECT-TYPE
 	"Indice da imagem (na tabela)"
     ::= { containershipParam 1 }
 
-containerName OBJECT-TYPE
+containershipParamContainer OBJECT-TYPE
     SYNTAX      DisplayString
     MAX-ACCESS  read-write
     STATUS      current
@@ -59,7 +59,7 @@ containerName OBJECT-TYPE
     "Nome do container responsavel pela imagem"
     ::= { containershipParam 2 }
 
-flag OBJECT-TYPE
+containershipParamFlag OBJECT-TYPE
     SYNTAX      Integer32
     MAX-ACCESS  read-write
     STATUS      current
