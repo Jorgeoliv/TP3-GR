@@ -192,7 +192,7 @@ containershipContainerStatus OBJECT-TYPE
     ::= { containershipContainerEntry 4 }
 
 containershipContainerProcessor OBJECT-TYPE
-    SYNTAX      Integer32
+    SYNTAX      DisplayString
     MAX-ACCESS  read-only
     STATUS      current
     DESCRIPTION
