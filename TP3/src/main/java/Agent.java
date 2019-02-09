@@ -130,8 +130,8 @@ class Pedido implements Runnable{
                         int indiceError = -1;
                         for(int i = 0; i<vb.size() && indiceError == -1; i++){
                             String oid = vb.get(i).getOid().toString();
-                            if (oid.startsWith("1.3.6.1.3.6000.5.1.")) {
-                                String indice = oid.substring(19);
+                            if (oid.startsWith("1.3.6.1.3.6000.5.")) {
+                                String indice = oid.substring(17);
                                 //se o indice  não for o correto deve devolver "true" para o erro
                                 boolean erroAdmin = fc.setValorInstancia(indice, vb.get(i).getVariable().toInt());
                                 if (erroAdmin) {
@@ -314,9 +314,9 @@ class Pedido implements Runnable{
              * Depois temos de validar se o que vamos receber é um int ou um integer, para criar a "Variable" correta
              * NOTA: Na nossa MIB tinhamos definido DisplayStrings, mas aqui nao consegui criar isso ... Usamos Octet String, para ja
              */
-            if(oid.startsWith("1.3.6.1.3.6000.5.1.")){
+            if(oid.startsWith("1.3.6.1.3.6000.5.")){
                 if (Admin.contains(cs) && pedido.getAddress().toString().equals("/127.0.0.1")) {
-                    String indice = oid.substring(19);
+                    String indice = oid.substring(17);
                     int val = fc.valorInstancia(indice);
                     if (val == -1) {
                         pduResposta.setErrorIndex(i+1);
@@ -689,16 +689,16 @@ class FlowController implements  Runnable {
             return true;
 
         switch (indice){
-            case "1":
+            case "1.0":
                 this.period = val;
                 return false;
-            case "2":
+            case "2.0":
                 this.upperInstantLimit = val;
                 return false;
-            case "3":
+            case "3.0":
                 this.upperMomentLimit = val;
                 return false;
-            case "4":
+            case "4.0":
                 this.upperTemporalLimit = val;
                 return false;
             default:
@@ -709,13 +709,13 @@ class FlowController implements  Runnable {
     public int valorInstancia(String indice) {
 
         switch (indice){
-            case "1":
+            case "1.0":
                 return this.period;
-            case "2":
+            case "2.0":
                 return this.upperInstantLimit;
-            case "3":
+            case "3.0":
                 return this.upperMomentLimit;
-            case "4":
+            case "4.0":
                 return this.upperTemporalLimit;
             default:
                 return -1;

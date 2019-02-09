@@ -13,7 +13,7 @@ int main(int argc, char const *argv[]){
 		while(i < nPedidos){
 			usleep(timeToWait);
 			if(fork() == 0){
-				execlp("snmpget", "snmpget", "-v2c", "-c", "public", "localhost:6000", "1.3.6.1.3.6000.3.2.5.1", (char *)NULL);
+				execlp("snmpget", "snmpget", "-v2c", "-c", "public", "localhost:6001", "1.3.6.1.3.6000.3.2.5.1", (char *)NULL);
 				_exit(0);
 			}
 			wait(NULL);

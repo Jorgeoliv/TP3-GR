@@ -27,7 +27,7 @@ containershipMIB MODULE-IDENTITY
     REVISION     "201811161430Z"  -- tem de ser igual a LAST-UPDATE!
     DESCRIPTION
         "Primeira versao"
-    ::= { experimental 2018 }
+    ::= { experimental 6000 }
 
 -- TOP LEVEL STRUCTURS
 containershipParam       OBJECT IDENTIFIER ::= { containershipMIB 1 }

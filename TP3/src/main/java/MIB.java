@@ -151,7 +151,7 @@ public class MIB {
     public void carregaImagens(List allImages){
         Iterator<List> it = allImages.iterator();
 
-        int i = 0;
+        int i = 1;
         while(it.hasNext()) {
             Image image = (Image) it.next();
             valores.put("2.2.1.1." + i, new Instancia(i, "2.2.1.1." + i));
@@ -159,7 +159,7 @@ public class MIB {
             valores.put("2.2.1.2." + i, new Instancia(aux.substring(1, aux.length()-1), "2.2.1.2." + i));
             i++;
         }
-        valores.put("2.1.0", new Instancia(i, "2.1.0"));
+        valores.put("2.1.0", new Instancia(i-1, "2.1.0"));
 
         System.out.println("VAMOS VER COMO ESTA:");
         System.out.println(valores);
